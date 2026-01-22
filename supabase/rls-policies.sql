@@ -83,15 +83,15 @@ create policy "Users can view own signups"
   on public.signup for select
   using (auth.uid() = user_id);
 
--- Users can insert their own signups
-create policy "Users can insert own signups"
-  on public.signup for insert
-  with check (auth.uid() = user_id);
+-- Authenticated users can view all signups (needed to display match player lists)
+create policy "Authenticated users can view all signups"
+  on public.signup for select
+  to authenticated
+  using (true);
 
--- Users can update their own signups
-create policy "Users can update own signups"
-  on public.signup for update
-  using (auth.uid() = user_id);
+-- Users can insert their own signups
+-- NOTE: direct client writes to `signup` are intentionally disallowed.
+-- All signup state transitions should go through server-side logic (Edge Functions / atomic RPCs).
 
 -- Organizers can view all signups for their matches
 create policy "Organizers can view all signups for their matches"

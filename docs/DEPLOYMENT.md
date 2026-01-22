@@ -7,7 +7,6 @@ This guide covers deploying the FootyFriends native app to production.
 - [ ] Apple Developer Account ($99/year)
 - [ ] Google Play Developer Account ($25 one-time)
 - [ ] Supabase project configured
-- [ ] OneSignal app configured with APNs and FCM
 - [ ] EAS CLI installed (`npm install -g eas-cli`)
 - [ ] Expo account created
 - [ ] App icons and splash screens ready (1024x1024)
@@ -27,7 +26,7 @@ This guide covers deploying the FootyFriends native app to production.
 
 3. **Update `app.json` with production details**
    - Update `expo.extra.eas.projectId` with your Expo project ID
-   - Verify bundle identifiers match OneSignal configuration
+   - Verify bundle identifiers are correct
 
 ## Step 2: iOS Setup
 
@@ -39,19 +38,11 @@ This guide covers deploying the FootyFriends native app to production.
    - Push Notifications
    - Associated Domains
 
-### 2.2 APNs Configuration for OneSignal
+### 2.2 Push Notifications Setup
 
-1. Create APNs Authentication Key:
-   - Go to Certificates, Identifiers & Profiles
-   - Keys → Create a new key
-   - Enable Apple Push Notifications service (APNs)
-   - Download the `.p8` file
-   - Note the Key ID and Team ID
+Expo handles push notifications automatically through EAS. No manual APNs configuration needed for Expo Push Notifications!
 
-2. Add to OneSignal:
-   - Go to OneSignal Settings → Platforms → iOS
-   - Upload `.p8` file
-   - Enter Key ID and Team ID
+When building with EAS, push notification certificates are managed automatically.
 
 ### 2.3 Universal Links (Deep Linking)
 
@@ -108,18 +99,11 @@ eas build --platform ios --profile production
 2. Create new app
 3. Set package name: `com.footyfriends.app`
 
-### 3.2 FCM Configuration for OneSignal
+### 3.2 Push Notifications Setup
 
-1. Create Firebase project at https://console.firebase.google.com
-2. Add Android app with package name `com.footyfriends.app`
-3. Download `google-services.json`
-4. Get Server Key:
-   - Go to Project Settings → Cloud Messaging
-   - Copy Server Key
+Expo handles push notifications automatically through EAS. No manual FCM configuration needed for Expo Push Notifications!
 
-5. Add to OneSignal:
-   - Go to OneSignal Settings → Platforms → Android
-   - Enter FCM Server Key
+When building with EAS, Firebase Cloud Messaging is configured automatically.
 
 ### 3.3 Android App Links (Deep Linking)
 
@@ -217,7 +201,7 @@ Update production environment variables in EAS:
 ```bash
 eas secret:create --name EXPO_PUBLIC_SUPABASE_URL --value https://your-project.supabase.co
 eas secret:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value your-anon-key
-eas secret:create --name EXPO_PUBLIC_ONESIGNAL_APP_ID --value your-onesignal-app-id
+eas secret:create --name EXPO_PUBLIC_EAS_PROJECT_ID --value your-eas-project-id
 ```
 
 ## Step 7: App Store Listings
@@ -300,9 +284,9 @@ Perfect for organizing regular football games with friends!
    - Review Edge Functions logs
    - Set up alerts for errors
 
-3. **Monitor OneSignal**
-   - Check delivery rates
-   - Review notification engagement
+3. **Monitor Expo Push Notifications**
+   - Check Expo dashboard for delivery stats
+   - Review notification logs in Supabase Edge Functions
 
 4. **Crash Reporting**
    - Enable Sentry or similar service
@@ -315,9 +299,10 @@ Perfect for organizing regular football games with friends!
 - Clear credentials: `eas credentials` → delete → recreate
 
 ### Push notifications not working
-- Verify APNs/FCM certificates
-- Check OneSignal App ID matches
-- Test with OneSignal dashboard
+- Verify device permissions are granted
+- Check push token saved in database
+- Test with Expo Push Tool: https://expo.dev/notifications
+- Check Edge Function logs in Supabase
 
 ### Deep links not working
 - Verify domain association files accessible

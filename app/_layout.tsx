@@ -1,10 +1,17 @@
+// Import polyfills first before any other imports
+import '@/lib/polyfills';
+import 'react-native-url-polyfill/auto';
+
 import { Stack } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { LogBox } from 'react-native';
-import OneSignal from 'react-native-onesignal';
+import { LogBox, Platform, StatusBar } from 'react-native';
 import Constants from 'expo-constants';
-import 'react-native-url-polyfill/auto';
+import { theme } from '@/constants/theme';
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/lib/auth-store';
+import { registerForPushNotificationsAsync, setupNotificationHandler } from '@/lib/notifications';
+import { isVerifiedSession } from '@/lib/auth-utils';
 
 // Ignore specific warnings
 LogBox.ignoreLogs(['Warning: ...']); // Add specific warnings to ignore
@@ -20,34 +27,56 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
+  const { setSession, session } = useAuthStore();
+
   useEffect(() => {
-    // Initialize OneSignal
-    const oneSignalAppId = Constants.expoConfig?.extra?.oneSignalAppId || process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID;
+    // Load session on app start
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
 
-    if (oneSignalAppId) {
-      OneSignal.setAppId(oneSignalAppId);
+    // Listen for auth changes globally
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
 
-      // Prompt for push on iOS
-      OneSignal.promptForPushNotificationsWithUserResponse((response) => {
-        console.log('Push notification permission:', response);
-      });
+    return () => subscription.unsubscribe();
+  }, [setSession]);
 
-      // Handle notification opened
-      OneSignal.setNotificationOpenedHandler((notification) => {
-        console.log('OneSignal: notification opened:', notification);
-        // Deep link navigation handled in individual screens
+  useEffect(() => {
+    // Set up notification handler
+    setupNotificationHandler();
+
+    // Register for push notifications when user is logged in
+    if (isVerifiedSession(session)) {
+      registerForPushNotificationsAsync(session.user.id).catch((error) => {
+        console.error('Error registering for push notifications:', error);
       });
     }
-  }, []);
+  }, [session]);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Stack>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
+      <Stack
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: theme.colors.background,
+          },
+          headerTintColor: theme.colors.text,
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+          contentStyle: {
+            backgroundColor: theme.colors.background,
+          },
+        }}
+      >
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="match/[id]" options={{ title: 'Match Details' }} />
-        <Stack.Screen name="teams/[id]" options={{ title: 'Teams' }} />
+        <Stack.Screen name="match/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="teams/[id]" options={{ title: 'Teams', headerTransparent: true, headerTintColor: '#fff' }} />
       </Stack>
     </QueryClientProvider>
   );

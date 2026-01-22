@@ -19,6 +19,45 @@ interface Player {
   rating: number;
 }
 
+/**
+ * Send push notification via Expo Push API
+ */
+async function sendPushNotification(
+  pushToken: string,
+  title: string,
+  body: string,
+  data?: Record<string, any>
+): Promise<void> {
+  try {
+    const message = {
+      to: pushToken,
+      sound: 'default',
+      title,
+      body,
+      data: data || {},
+      priority: 'high',
+      channelId: 'default',
+    };
+
+    const response = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Accept-encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('Error sending push notification:', error);
+    }
+  } catch (error) {
+    console.error('Failed to send push notification:', error);
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -74,10 +113,10 @@ serve(async (req) => {
 
     if (lockError) throw lockError;
 
-    // Get confirmed signups with profiles
+    // Get confirmed signups
     const { data: signups, error: signupsError } = await supabase
       .from('signup')
-      .select('user_id, profile:user_id(display_name, rating_base)')
+      .select('user_id')
       .eq('match_id', matchId)
       .eq('state', 'confirmed');
 
@@ -87,12 +126,24 @@ serve(async (req) => {
       throw new Error('No confirmed signups');
     }
 
+    // Fetch profiles separately
+    const userIds = signups.map(s => s.user_id);
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profile')
+      .select('user_id, display_name, rating_base')
+      .in('user_id', userIds);
+
+    if (profilesError) throw profilesError;
+
     // Prepare players list with ratings
-    const players: Player[] = signups.map(s => ({
-      user_id: s.user_id,
-      display_name: s.profile?.display_name || 'Unknown',
-      rating: s.profile?.rating_base || 3,
-    }));
+    const players: Player[] = signups.map(s => {
+      const profile = profiles?.find(p => p.user_id === s.user_id);
+      return {
+        user_id: s.user_id,
+        display_name: profile?.display_name || 'Unknown',
+        rating: profile?.rating_base || 3,
+      };
+    });
 
     // Sort players by rating (descending)
     players.sort((a, b) => b.rating - a.rating);
@@ -161,6 +212,29 @@ serve(async (req) => {
         team_sizes: teams.map(t => t.length),
       },
     });
+
+    // Send push notifications to all confirmed players with their team assignment
+    for (let i = 0; i < teams.length; i++) {
+      const teamName = `Team ${String.fromCharCode(65 + i)}`;
+      
+      for (const player of teams[i]) {
+        // Get player's push token
+        const { data: profile } = await supabase
+          .from('profile')
+          .select('push_token')
+          .eq('user_id', player.user_id)
+          .single();
+
+        if (profile?.push_token) {
+          await sendPushNotification(
+            profile.push_token,
+            '⚽ Teams are ready!',
+            `You're on ${teamName}. See you at the match!`,
+            { matchId, teamName }
+          );
+        }
+      }
+    }
 
     // Calculate team stats for response
     const teamStats = teams.map((team, idx) => ({

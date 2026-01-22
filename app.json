@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "FootyFriends",
+    "name": "Football Friends",
     "slug": "footyfriends",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -52,17 +52,12 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
     "plugins": [
       "expo-router",
-      [
-        "react-native-onesignal",
-        {
-          "mode": "development"
-        }
-      ]
+      "expo-asset",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

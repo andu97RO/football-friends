@@ -19,6 +19,45 @@ interface JoinMatchResponse {
   error?: string;
 }
 
+/**
+ * Send push notification via Expo Push API
+ */
+async function sendPushNotification(
+  pushToken: string,
+  title: string,
+  body: string,
+  data?: Record<string, any>
+): Promise<void> {
+  try {
+    const message = {
+      to: pushToken,
+      sound: 'default',
+      title,
+      body,
+      data: data || {},
+      priority: 'high',
+      channelId: 'default',
+    };
+
+    const response = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Accept-encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('Error sending push notification:', error);
+    }
+  } catch (error) {
+    console.error('Failed to send push notification:', error);
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -47,95 +86,42 @@ serve(async (req) => {
       throw new Error('Missing matchId');
     }
 
-    // Start transaction by getting match with FOR UPDATE lock
-    const { data: match, error: matchError } = await supabase
-      .from('match')
-      .select('*')
-      .eq('id', matchId)
-      .single();
+    // Atomic join (capacity includes reserved invitations)
+    const { data: joinResult, error: joinError } = await supabase.rpc('join_match_atomic', {
+      p_match_id: matchId,
+      p_user_id: user.id,
+    });
 
-    if (matchError || !match) {
-      throw new Error('Match not found');
+    if (joinError) {
+      throw new Error(joinError.message || 'Failed to join match');
     }
 
-    // Check if signup is open
-    const now = new Date();
-    const signupOpenAt = new Date(match.signup_open_at);
+    const row = Array.isArray(joinResult) ? joinResult[0] : joinResult;
+    const state = row?.state as 'confirmed' | 'waitlist';
+    const queuePos = (row?.queue_pos ?? null) as number | null;
 
-    if (now < signupOpenAt) {
-      throw new Error('Signup not open yet');
-    }
+    const result = { state, position: queuePos ?? undefined };
 
-    // Check if match is locked
-    if (match.status === 'locked' || match.status === 'completed' || match.status === 'cancelled') {
-      throw new Error('Match is not open for signups');
-    }
-
-    // Check if user already signed up
-    const { data: existingSignup } = await supabase
-      .from('signup')
-      .select('*')
-      .eq('match_id', matchId)
+    // Send push notification
+    const { data: profile } = await supabase
+      .from('profile')
+      .select('push_token, display_name')
       .eq('user_id', user.id)
       .single();
 
-    if (existingSignup && existingSignup.state !== 'cancelled') {
-      throw new Error('Already signed up');
+    if (profile?.push_token) {
+      const title = state === 'confirmed' ? '✅ You\'re in!' : '📋 You\'re on the waitlist';
+      const body = state === 'confirmed' 
+        ? 'You\'re confirmed for the match!' 
+        : `You\'re #${queuePos} on the waitlist.`;
+      
+      await sendPushNotification(
+        profile.push_token,
+        title,
+        body,
+        { matchId }
+      );
     }
-
-    // Count confirmed signups
-    const { data: signups, error: signupsError } = await supabase
-      .from('signup')
-      .select('*')
-      .eq('match_id', matchId)
-      .neq('state', 'cancelled');
-
-    if (signupsError) {
-      throw signupsError;
-    }
-
-    const confirmedCount = signups.filter(s => s.state === 'confirmed').length;
-    const waitlistCount = signups.filter(s => s.state === 'waitlist').length;
-
-    // Determine state and queue position
-    const state = confirmedCount < match.spots ? 'confirmed' : 'waitlist';
-    const queuePos = state === 'waitlist' ? waitlistCount + 1 : null;
-
-    // Insert or update signup
-    let result;
-    if (existingSignup) {
-      const { error: updateError } = await supabase
-        .from('signup')
-        .update({
-          state,
-          queue_pos: queuePos,
-          created_at: new Date().toISOString(),
-        })
-        .eq('id', existingSignup.id);
-
-      if (updateError) throw updateError;
-      result = { state, position: queuePos };
-    } else {
-      const { error: insertError } = await supabase
-        .from('signup')
-        .insert({
-          match_id: matchId,
-          user_id: user.id,
-          state,
-          queue_pos: queuePos,
-        });
-
-      if (insertError) throw insertError;
-      result = { state, position: queuePos };
-    }
-
-    // Log audit trail
-    await supabase.from('audit_log').insert({
-      match_id: matchId,
-      user_id: user.id,
-      action: 'join_match',
-      meta: { state, queue_pos: queuePos },
-    });
 
     const response: JoinMatchResponse = result;
 

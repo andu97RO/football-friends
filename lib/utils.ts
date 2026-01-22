@@ -15,6 +15,23 @@ export function formatMatchTime(isoString: string): string {
   return date.toLocaleString('en-US', options);
 }
 
+export function formatMatchTimeShort(isoString: string): string {
+  const date = new Date(isoString);
+  const dateOptions: Intl.DateTimeFormatOptions = {
+    timeZone: TIMEZONE,
+    month: 'short',
+    day: 'numeric',
+  };
+  const timeOptions: Intl.DateTimeFormatOptions = {
+    timeZone: TIMEZONE,
+    hour: 'numeric',
+    minute: '2-digit',
+  };
+  const datePart = date.toLocaleString('en-US', dateOptions);
+  const timePart = date.toLocaleString('en-US', timeOptions);
+  return `${datePart}, ${timePart}`;
+}
+
 export function getMatchStatus(
   match: Match,
   now: Date

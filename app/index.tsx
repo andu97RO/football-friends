@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { useRouter, Redirect } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/auth-store';
+import { isVerifiedSession } from '@/lib/auth-utils';
 
 export default function Index() {
-  const router = useRouter();
   const { session, setSession } = useAuthStore();
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export default function Index() {
   }
 
   // Redirect based on session
-  if (session) {
+  if (isVerifiedSession(session)) {
     return <Redirect href="/(tabs)/matches" />;
   }
 

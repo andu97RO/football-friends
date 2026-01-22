@@ -22,7 +22,7 @@ FootyFriends helps organize private weekly football matches with:
 - **Backend**: Supabase (Postgres + Edge Functions)
 - **Authentication**: Supabase Auth with email magic links
 - **State Management**: @tanstack/react-query + Zustand
-- **Push Notifications**: OneSignal
+- **Push Notifications**: Expo Push Notifications
 - **Build & Deploy**: EAS Build
 
 ## 📱 Features
@@ -52,7 +52,6 @@ FootyFriends helps organize private weekly football matches with:
 - Expo CLI: `npm install -g expo-cli`
 - Expo account (sign up at https://expo.dev)
 - Supabase account and project
-- OneSignal account for push notifications
 
 ### Installation
 
@@ -76,9 +75,9 @@ FootyFriends helps organize private weekly football matches with:
    ```env
    EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
    EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-   EXPO_PUBLIC_ONESIGNAL_APP_ID=your-onesignal-app-id
    EXPO_PUBLIC_APP_SCHEME=footy
    EXPO_PUBLIC_TIMEZONE=Europe/Bucharest
+   EXPO_PUBLIC_EAS_PROJECT_ID=your-eas-project-id (optional)
    ```
 
 4. **Set up Supabase**
@@ -111,22 +110,13 @@ FootyFriends helps organize private weekly football matches with:
    supabase functions deploy lock-and-generate
    ```
 
-5. **Set up OneSignal**
+   d. Add push_token column to profile table:
+   ```bash
+   # In Supabase SQL Editor, run:
+   supabase/add_push_token.sql
+   ```
 
-   a. Create an app at https://onesignal.com
-
-   b. Configure iOS (APNs):
-   - Add your APNs authentication key
-   - Set bundle identifier: `com.footyfriends.app`
-
-   c. Configure Android (FCM):
-   - Create Firebase project
-   - Add FCM server key to OneSignal
-   - Set package name: `com.footyfriends.app`
-
-   d. Add OneSignal App ID to `.env`
-
-6. **Configure deep linking**
+5. **Configure deep linking**
 
    For production, you'll need to:
    - Set up Universal Links for iOS (apple-app-site-association)
@@ -305,10 +295,15 @@ npm run lint
 
 ### Testing Push Notifications
 
-1. Build and install on physical device
-2. Grant notification permissions
-3. Trigger notification from OneSignal dashboard
-4. Verify deep link navigation works
+Expo Push Notifications work in Expo Go for testing!
+
+1. Start the app and log in
+2. App will automatically request notification permissions
+3. Test with Expo Push Tool: https://expo.dev/notifications
+4. Trigger notifications by:
+   - Joining a match
+   - Getting promoted from waitlist
+   - Teams being generated
 
 ### Testing FCFS Logic
 
@@ -323,9 +318,9 @@ Create multiple test accounts and simulate concurrent signups at open time to ve
 |----------|-------------|---------|
 | `EXPO_PUBLIC_SUPABASE_URL` | Supabase project URL | `https://abc.supabase.co` |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key | `eyJ...` |
-| `EXPO_PUBLIC_ONESIGNAL_APP_ID` | OneSignal app identifier | `12345678-...` |
 | `EXPO_PUBLIC_APP_SCHEME` | Deep link scheme | `footy` |
 | `EXPO_PUBLIC_TIMEZONE` | Display timezone | `Europe/Bucharest` |
+| `EXPO_PUBLIC_EAS_PROJECT_ID` | EAS project ID (optional) | `abc123...` |
 
 ## 🤝 Contributing
 
@@ -350,10 +345,11 @@ Private - All Rights Reserved
 - Check network connectivity
 
 ### Push Notifications Not Received
-- Verify OneSignal App ID is correct
-- Check device permissions granted
-- Test with OneSignal dashboard send
-- Verify APNs/FCM certificates are valid
+- Check device permissions are granted
+- Verify push token is saved in database
+- Test with Expo Push Tool: https://expo.dev/notifications
+- Check Edge Function logs in Supabase
+- Make sure you're using a physical device (not web)
 
 ### Build Failures
 - Clear cache: `expo start -c`

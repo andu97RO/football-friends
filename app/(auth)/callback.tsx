@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/auth-store';
 
@@ -8,6 +9,7 @@ export default function AuthCallbackScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { setSession } = useAuthStore();
+  const [status, setStatus] = useState('Processing...');
 
   useEffect(() => {
     handleCallback();
@@ -15,20 +17,58 @@ export default function AuthCallbackScreen() {
 
   const handleCallback = async () => {
     try {
-      // Extract token from URL params
-      const { access_token, refresh_token } = params;
+      // Get the full URL to check for hash fragments
+      const url = await Linking.getInitialURL();
+      let isRecovery = false;
+
+      // Check if this is a recovery flow from the URL hash
+      if (url) {
+        const hashParams = url.split('#')[1];
+        if (hashParams) {
+          const urlParams = new URLSearchParams(hashParams);
+          isRecovery = urlParams.get('type') === 'recovery';
+        }
+      }
+
+      // Also check query params (in case type is passed there)
+      if (params.type === 'recovery') {
+        isRecovery = true;
+      }
+
+      // Extract tokens from params or URL hash
+      let access_token = params.access_token as string;
+      let refresh_token = params.refresh_token as string;
+
+      // If tokens not in params, try to get from URL hash
+      if ((!access_token || !refresh_token) && url) {
+        const hashParams = url.split('#')[1];
+        if (hashParams) {
+          const urlParams = new URLSearchParams(hashParams);
+          access_token = access_token || urlParams.get('access_token') || '';
+          refresh_token = refresh_token || urlParams.get('refresh_token') || '';
+        }
+      }
 
       if (access_token && refresh_token) {
+        setStatus('Setting up your session...');
+        
         // Set the session using the tokens
         const { data, error } = await supabase.auth.setSession({
-          access_token: access_token as string,
-          refresh_token: refresh_token as string,
+          access_token,
+          refresh_token,
         });
 
         if (error) throw error;
 
         setSession(data.session);
-        router.replace('/(tabs)/matches');
+
+        // Check if this is a password recovery flow
+        if (isRecovery) {
+          setStatus('Redirecting to password reset...');
+          router.replace('/(auth)/reset-password');
+        } else {
+          router.replace('/(tabs)/matches');
+        }
       } else {
         // If no tokens, try to get the current session
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -51,7 +91,7 @@ export default function AuthCallbackScreen() {
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" color="#10b981" />
-      <Text style={styles.text}>Signing you in...</Text>
+      <Text style={styles.text}>{status}</Text>
     </View>
   );
 }
