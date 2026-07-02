@@ -196,23 +196,14 @@ export default function AdminScreen() {
     mutationFn: async ({ userId, newRating }: { userId: string; newRating: number }) => {
       if (!session?.user?.id) throw new Error("Not authenticated");
 
-      // Update player rating
-      const { error } = await supabase
-        .from("profile")
-        .update({ rating_base: newRating })
-        .eq("user_id", userId);
+      // Updates rating_base and writes the audit log entry atomically
+      // server-side (audit_log has no client-facing INSERT policy).
+      const { error } = await supabase.rpc("update_player_rating_atomic", {
+        p_user_id: userId,
+        p_new_rating: newRating,
+      });
 
       if (error) throw error;
-
-      // Log audit trail
-      await supabase.from("audit_log").insert({
-        user_id: session.user.id,
-        action: "update_player_rating",
-        meta: {
-          target_user_id: userId,
-          new_rating: newRating,
-        },
-      });
 
       return { userId, newRating };
     },

@@ -136,8 +136,6 @@ export async function registerForPushNotificationsAsync(
     const tokenData = await Notifications.getExpoPushTokenAsync();
     const token = tokenData.data;
 
-    console.log("Expo push token:", token);
-
     // Save token to database
     const { error } = await supabase
       .from("profile")

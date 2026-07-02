@@ -278,52 +278,10 @@ export default function MatchesScreen() {
   // Delete match mutation (admin only)
   const deleteMatchMutation = useMutation({
     mutationFn: async (matchId: string) => {
-      // Delete in order to respect foreign key constraints:
-      // 1. Delete rating_snapshots (references match_id)
-      const { error: ratingError } = await supabase
-        .from("rating_snapshot")
-        .delete()
-        .eq("match_id", matchId);
-      if (ratingError) throw ratingError;
-
-      // 2. Get team IDs for this match
-      const { data: teams } = await supabase
-        .from("team")
-        .select("id")
-        .eq("match_id", matchId);
-
-      // 3. Delete team_assignments (references team_id)
-      if (teams && teams.length > 0) {
-        const teamIds = teams.map((t) => t.id);
-        const { error: assignmentError } = await supabase
-          .from("team_assignment")
-          .delete()
-          .in("team_id", teamIds);
-        if (assignmentError) throw assignmentError;
-      }
-
-      // 4. Delete teams (references match_id)
-      const { error: teamError } = await supabase
-        .from("team")
-        .delete()
-        .eq("match_id", matchId);
-      if (teamError) throw teamError;
-
-      // 5. Delete signups (references match_id)
-      const { error: signupError } = await supabase
-        .from("signup")
-        .delete()
-        .eq("match_id", matchId);
-      if (signupError) throw signupError;
-
-      // 6. Delete audit_log entries (references match_id)
-      const { error: auditError } = await supabase
-        .from("audit_log")
-        .delete()
-        .eq("match_id", matchId);
-      if (auditError) throw auditError;
-
-      // 7. Finally delete the match
+      // signup, team, team_assignment, rating_snapshot, and post_match_vote
+      // all reference match_id with ON DELETE CASCADE, so deleting the match
+      // is enough; audit_log intentionally has no FK and survives deletion
+      // as a historical record.
       const { error } = await supabase.from("match").delete().eq("id", matchId);
       if (error) throw error;
     },
