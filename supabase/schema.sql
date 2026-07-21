@@ -39,7 +39,6 @@ create table if not exists public.signup (
   user_id uuid not null references auth.users(id) on delete cascade,
   state text not null check (state in ('confirmed','waitlist','cancelled')),
   queue_pos integer,
-  hold_expires_at timestamptz,
   created_at timestamptz not null default now(),
   unique (match_id, user_id)
 );
@@ -61,7 +60,7 @@ create table if not exists public.team_assignment (
 -- Rating snapshot table: stores historical ratings for each match
 create table if not exists public.rating_snapshot (
   user_id uuid references auth.users(id),
-  match_id uuid references public.match(id),
+  match_id uuid references public.match(id) on delete cascade,
   rating_display smallint not null check (rating_display between 1 and 5),
   elo_before numeric,
   elo_after numeric,
@@ -70,7 +69,7 @@ create table if not exists public.rating_snapshot (
 
 -- Post match vote table: stores player ratings after a match
 create table if not exists public.post_match_vote (
-  match_id uuid references public.match(id),
+  match_id uuid references public.match(id) on delete cascade,
   voter_id uuid references auth.users(id),
   target_id uuid references auth.users(id),
   stars smallint check (stars between 1 and 5),
@@ -94,6 +93,7 @@ create index if not exists idx_match_status on public.match(status);
 create index if not exists idx_signup_match_id on public.signup(match_id);
 create index if not exists idx_signup_user_id on public.signup(user_id);
 create index if not exists idx_signup_state on public.signup(state);
+create index if not exists idx_signup_queue_pos on public.signup(queue_pos);
 create index if not exists idx_team_match_id on public.team(match_id);
 create index if not exists idx_audit_log_match_id on public.audit_log(match_id);
 create index if not exists idx_audit_log_created_at on public.audit_log(created_at);

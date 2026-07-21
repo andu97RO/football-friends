@@ -238,7 +238,8 @@ export default function AdminScreen() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["matches"] });
+      queryClient.invalidateQueries({ queryKey: ["matches-with-signups"] });
+      queryClient.invalidateQueries({ queryKey: ["open-match-count"] });
       setShowSuccessModal(true);
       // Reset to default values
       setKickOffDateTime(dayjs().add(1, "week").hour(19).minute(0));

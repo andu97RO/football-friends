@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -10,6 +10,7 @@ import { theme } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import { Match, Profile, Signup } from '@/lib/types';
 
 dayjs.extend(relativeTime);
 
@@ -32,6 +33,41 @@ export default function ChatScreen() {
   const [newMessage, setNewMessage] = useState('');
   const flatListRef = useRef<FlatList>(null);
 
+  const { data: access, isLoading: accessLoading } = useQuery({
+    queryKey: ['chat-access', id, session?.user?.id],
+    queryFn: async () => {
+      if (!session?.user?.id || !id) return { allowed: false };
+
+      const [{ data: signup }, { data: match }, { data: profile }] = await Promise.all([
+        supabase
+          .from('signup')
+          .select('state')
+          .eq('match_id', id)
+          .eq('user_id', session.user.id)
+          .maybeSingle(),
+        supabase
+          .from('match')
+          .select('club:club_id(organizer_id)')
+          .eq('id', id)
+          .single(),
+        supabase
+          .from('profile')
+          .select('is_admin')
+          .eq('user_id', session.user.id)
+          .maybeSingle(),
+      ]);
+
+      const isConfirmed = (signup as Signup | null)?.state === 'confirmed';
+      const isOrganizer =
+        (match as Match & { club?: { organizer_id: string } } | null)?.club?.organizer_id ===
+        session.user.id;
+      const isAdmin = (profile as Profile | null)?.is_admin === true;
+
+      return { allowed: isConfirmed || isOrganizer || isAdmin };
+    },
+    enabled: !!session?.user?.id && !!id,
+  });
+
   // Fetch messages
   const { data: messages, isLoading } = useQuery({
     queryKey: ['chat', id],
@@ -45,10 +81,13 @@ export default function ChatScreen() {
       if (error) throw error;
       return data as ChatMessage[];
     },
+    enabled: access?.allowed === true,
   });
 
   // Realtime subscription
   useEffect(() => {
+    if (!access?.allowed) return;
+
     const channel = supabase
       .channel(`chat:${id}`)
       .on(
@@ -60,7 +99,6 @@ export default function ChatScreen() {
           filter: `match_id=eq.${id}`,
         },
         async (payload) => {
-          // Fetch the profile for the new message
           const { data: profile } = await supabase
             .from('profile')
             .select('display_name')
@@ -70,24 +108,18 @@ export default function ChatScreen() {
           const newMsg = { ...payload.new, profile } as ChatMessage;
 
           queryClient.setQueryData(['chat', id], (old: ChatMessage[] = []) => {
-             // Avoid duplicates - check both by ID and by temp ID
              if (old.find(m => m.id === newMsg.id)) return old;
 
-             // Remove optimistic message and add real one
-             // Check if this message was sent by the current user around the same time
              const filteredOld = old.filter(m => {
-               // Keep messages that don't match this new message
                if (!m.id.startsWith('temp-')) return true;
                if (m.user_id !== newMsg.user_id) return true;
                if (m.content !== newMsg.content) return true;
-               // This is likely the optimistic version of our new message
                return false;
              });
 
              return [...filteredOld, newMsg];
           });
 
-          // Scroll to bottom
           setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         }
       )
@@ -96,9 +128,8 @@ export default function ChatScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, queryClient]);
+  }, [id, queryClient, access?.allowed]);
 
-  // Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: async (content: string) => {
       if (!content.trim()) return;
@@ -112,7 +143,6 @@ export default function ChatScreen() {
       if (error) throw error;
     },
     onMutate: async (content) => {
-      // Optimistic update
       await queryClient.cancelQueries({ queryKey: ['chat', id] });
       const previousMessages = queryClient.getQueryData(['chat', id]);
 
@@ -123,7 +153,7 @@ export default function ChatScreen() {
         content: content.trim(),
         created_at: new Date().toISOString(),
         profile: {
-          display_name: 'You', // Placeholder until real data comes
+          display_name: 'You',
         },
       };
 
@@ -132,7 +162,7 @@ export default function ChatScreen() {
       
       return { previousMessages };
     },
-    onError: (err, newTodo, context) => {
+    onError: (_err, _newTodo, context) => {
       queryClient.setQueryData(['chat', id], context?.previousMessages);
       Alert.alert('Error', 'Failed to send message');
     },
@@ -163,6 +193,39 @@ export default function ChatScreen() {
     );
   };
 
+  if (accessLoading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  if (!access?.allowed) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient
+          colors={[theme.colors.background, '#1e1b4b']}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Match Chat</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <View style={styles.centered}>
+          <Ionicons name="lock-closed" size={40} color={theme.colors.textSecondary} />
+          <Text style={styles.deniedTitle}>Chat is for confirmed players</Text>
+          <Text style={styles.deniedSubtitle}>
+            Join the match and get a confirmed spot to access chat.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -186,6 +249,11 @@ export default function ChatScreen() {
         contentContainerStyle={styles.listContent}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        ListEmptyComponent={
+          !isLoading ? (
+            <Text style={styles.emptyText}>No messages yet. Say hi!</Text>
+          ) : null
+        }
       />
 
       <KeyboardAvoidingView
@@ -218,6 +286,31 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.xl,
+  },
+  deniedTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: theme.spacing.m,
+    textAlign: 'center',
+  },
+  deniedSubtitle: {
+    color: theme.colors.textSecondary,
+    fontSize: 14,
+    marginTop: theme.spacing.s,
+    textAlign: 'center',
+  },
+  emptyText: {
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginTop: theme.spacing.xl,
+    fontStyle: 'italic',
   },
   header: {
     flexDirection: 'row',

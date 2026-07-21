@@ -1,6 +1,7 @@
 import { Match } from './types';
 
 const TIMEZONE = 'Europe/Bucharest';
+const SOFT_LOCK_MS = 60 * 60 * 1000; // T-60 minutes before kickoff
 
 export function formatMatchTime(isoString: string): string {
   const date = new Date(isoString);
@@ -32,6 +33,12 @@ export function formatMatchTimeShort(isoString: string): string {
   return `${datePart}, ${timePart}`;
 }
 
+/**
+ * Display status from DB + signup window timing.
+ * Soft-lock (T-60) is NOT treated as locked — that only happens when
+ * match.status is 'locked' after Lock & Generate. Soft-lock only closes
+ * new joins via isSignupWindowOpen().
+ */
 export function getMatchStatus(
   match: Match,
   now: Date
@@ -41,13 +48,28 @@ export function getMatchStatus(
   if (match.status === 'locked') return 'locked';
 
   const signupOpenTime = new Date(match.signup_open_at).getTime();
-  const kickOffTime = new Date(match.kick_off).getTime();
-  const nowTime = now.getTime();
-  const lockTime = kickOffTime - 60 * 60 * 1000; // T-60 minutes
-
-  if (nowTime < signupOpenTime) return 'waiting';
-  if (nowTime >= lockTime) return 'locked';
+  if (now.getTime() < signupOpenTime) return 'waiting';
   return 'open';
+}
+
+/**
+ * Whether new players can still join (or enter the waitlist).
+ * Closes at T-60 soft-lock even if the match has not been DB-locked yet.
+ */
+export function isSignupWindowOpen(match: Match, now: Date): boolean {
+  if (
+    match.status === 'cancelled' ||
+    match.status === 'locked' ||
+    match.status === 'completed'
+  ) {
+    return false;
+  }
+
+  const nowTime = now.getTime();
+  const signupOpenTime = new Date(match.signup_open_at).getTime();
+  const softLockTime = new Date(match.kick_off).getTime() - SOFT_LOCK_MS;
+
+  return nowTime >= signupOpenTime && nowTime < softLockTime;
 }
 
 export function formatCountdown(ms: number): string {

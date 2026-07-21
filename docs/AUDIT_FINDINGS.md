@@ -149,3 +149,31 @@ before signing out.
    admin; admin delete-match succeeds cleanly with no orphaned rows; a user
    not signed up for a match cannot read/post its chat; logging out clears
    `profile.push_token`.
+
+## E. Follow-up functional fixes (post-audit pass)
+
+A second audit found remaining UX/functional gaps after the SQL fixes above.
+These were fixed in app + edge-function code (and baselines were synced):
+
+1. **Soft-lock hid Lock & Generate / fake View Teams** — `getMatchStatus`
+   no longer treats T-60 as DB-locked. Soft-lock only closes new joins via
+   `isSignupWindowOpen()`. Lock/View Teams/Cancel use `match.status`.
+2. **Chat button ignored participation RLS** — Match Chat is gated to
+   confirmed players / organizer / admin; chat route shows a clear deny
+   state for others.
+3. **Admin create-match cache miss** — invalidates `matches-with-signups`
+   (and open-match-count) instead of unused `matches`.
+4. **Admins could not lock teams** — `lock-and-generate` now allows
+   `is_admin` (matching `swap-players`); match detail shows Lock for
+   organizers and admins. Partial-failure recovery: re-run allowed when
+   match is locked but has no teams yet.
+5. **Waitlist copy said "You are in!"** — waitlisted users now see
+   "On the waitlist".
+6. **Profile lazy-created only on Profile tab** — `ensureProfile()` runs
+   on verified session in root layout / tabs so chat FKs and push tokens
+   work immediately.
+7. **Greenfield schema drift** — `schema.sql`, `rls-policies.sql`, and
+   `chat.sql` now include the cascade FKs, chat participation policies,
+   admin create-match policy, rating RPC, and cleanup (no
+   `hold_expires_at`, queue_pos index). Existing projects still apply the
+   four `fix_*.sql` / `cleanup.sql` migration files.
