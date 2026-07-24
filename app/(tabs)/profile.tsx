@@ -26,6 +26,7 @@ import * as ImagePicker from "expo-image-picker";
 import {
   scheduleLocalTestNotificationAsync,
   sendNotificationToUser,
+  unregisterPushNotifications,
 } from "@/lib/notifications";
 
 export default function ProfileScreen() {
@@ -216,6 +217,11 @@ export default function ProfileScreen() {
 
   const handleSignOut = async () => {
     const performSignOut = async () => {
+      // Clear the push token so a future user of this device doesn't keep
+      // receiving notifications meant for this account.
+      if (session?.user?.id) {
+        await unregisterPushNotifications(session.user.id);
+      }
       // Clear all React Query cache to prevent stale data on next login
       queryClient.clear();
       await supabase.auth.signOut();

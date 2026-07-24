@@ -31,7 +31,6 @@ export interface Signup {
   user_id: string;
   state: 'confirmed' | 'waitlist' | 'cancelled';
   queue_pos: number | null;
-  hold_expires_at: string | null;
   created_at: string;
 }
 

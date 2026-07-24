@@ -228,9 +228,6 @@ export default function MatchDetailScreen() {
         throw new Error("Supabase URL is not configured");
       }
       
-      console.log('🚀 Calling cancel-signup Edge Function...');
-      console.log('Match ID:', id);
-
       const response = await fetch(
         `${supabaseUrl}/functions/v1/cancel-signup`,
         {
@@ -243,21 +240,17 @@ export default function MatchDetailScreen() {
         }
       );
 
-      console.log('📡 Response status:', response.status);
       const result = await response.json();
-      console.log('📦 Response data:', result);
 
       if (!result.success) {
-        console.error('❌ Edge Function error:', result.error);
+        console.error('Cancel-signup Edge Function error:', result.error);
         throw new Error(result.error || 'Failed to cancel signup');
       }
-      
+
       return result;
     },
     onSuccess: (data) => {
-      console.log('✅ Cancel successful:', data);
       if (data.promoted) {
-        console.log('📨 Invitation sent to:', data.promoted.displayName);
         Alert.alert('Success', `Spot given to ${data.promoted.displayName}`);
       } else {
         Alert.alert('Success', 'Signup cancelled');
