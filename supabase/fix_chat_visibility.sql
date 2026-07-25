@@ -3,9 +3,29 @@
 -- chat_message directly (the app UI's match_id filter is client-side only).
 -- Restrict to users who are actually confirmed for that match, plus
 -- organizers/admins so they can moderate.
+--
+-- IMPORTANT: Postgres combines permissive policies with OR. If any old
+-- permissive policy survived (e.g. because its name differs from what this
+-- repo's chat.sql says — there is no ordered migration system here, so the
+-- live names cannot be assumed), it would keep granting blanket access and
+-- this "fix" would silently do nothing. So we drop EVERY existing policy on
+-- chat_message by name from the catalog before creating the correct ones.
 
-drop policy if exists "Users can view messages for matches" on public.chat_message;
-drop policy if exists "Users can insert messages" on public.chat_message;
+do $$
+declare
+  r record;
+begin
+  for r in
+    select policyname from pg_policies
+    where schemaname = 'public' and tablename = 'chat_message'
+  loop
+    execute format('drop policy %I on public.chat_message', r.policyname);
+    raise notice 'chat_message: dropped pre-existing policy %', r.policyname;
+  end loop;
+end;
+$$;
+
+alter table public.chat_message enable row level security;
 
 create policy "Match participants can view messages"
   on public.chat_message for select
