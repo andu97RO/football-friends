@@ -13,7 +13,7 @@ import { useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { Match, Profile } from "@/lib/types";
-import { formatMatchTime, formatMatchTimeShort, getMatchStatus } from "@/lib/utils";
+import { formatMatchTime, formatMatchTimeShort, getMatchStatus, isSignupWindowOpen } from "@/lib/utils";
 import { useEffect, useState, useCallback } from "react";
 import DateTimePicker from "@/components/DateTimePicker";
 import dayjs from "dayjs";
@@ -412,8 +412,7 @@ export default function MatchesScreen() {
   };
 
   const openMatchCount =
-    matchesWithSignups?.filter((m) => getMatchStatus(m, now) === "open")
-      .length || 0;
+    matchesWithSignups?.filter((m) => isSignupWindowOpen(m, now)).length || 0;
 
   const renderMatch = ({
     item,
@@ -434,7 +433,8 @@ export default function MatchesScreen() {
     const urgencyColor = getUrgencyColor(urgency);
     const fillPercent = (item.confirmed_count / item.spots) * 100;
 
-    const canJoin = isOpen && !item.user_signup_state && session?.user?.id;
+    const canJoin =
+      isSignupWindowOpen(item, now) && !item.user_signup_state && !!session?.user?.id;
     const isJoined =
       item.user_signup_state === "confirmed" ||
       item.user_signup_state === "waitlist";

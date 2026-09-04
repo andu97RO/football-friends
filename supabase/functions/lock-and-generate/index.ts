@@ -86,7 +86,7 @@ serve(async (req) => {
       throw new Error('Missing matchId');
     }
 
-    // Get match and verify user is organizer
+    // Get match and verify user is organizer or admin
     const { data: match, error: matchError } = await supabase
       .from('match')
       .select('*, club:club_id(organizer_id)')
@@ -97,21 +97,46 @@ serve(async (req) => {
       throw new Error('Match not found');
     }
 
-    if (match.club.organizer_id !== user.id) {
-      throw new Error('Unauthorized: Not match organizer');
+    const isOrganizer = match.club.organizer_id === user.id;
+
+    const { data: callerProfile } = await supabase
+      .from('profile')
+      .select('is_admin')
+      .eq('user_id', user.id)
+      .single();
+
+    const isAdmin = callerProfile?.is_admin === true;
+
+    if (!isOrganizer && !isAdmin) {
+      throw new Error('Unauthorized: Not match organizer or admin');
     }
 
-    if (match.status === 'locked' || match.status === 'completed') {
-      throw new Error('Match already locked or completed');
+    if (match.status === 'completed' || match.status === 'cancelled') {
+      throw new Error('Match already completed or cancelled');
     }
 
-    // Lock the match
-    const { error: lockError } = await supabase
-      .from('match')
-      .update({ status: 'locked' })
-      .eq('id', matchId);
+    // Allow recovery if a previous run locked the match but failed before
+    // creating teams (non-transactional multi-step flow).
+    if (match.status === 'locked') {
+      const { count: existingTeams, error: teamsCountError } = await supabase
+        .from('team')
+        .select('*', { count: 'exact', head: true })
+        .eq('match_id', matchId);
 
-    if (lockError) throw lockError;
+      if (teamsCountError) throw teamsCountError;
+
+      if ((existingTeams ?? 0) > 0) {
+        throw new Error('Match already locked or completed');
+      }
+    } else {
+      // Lock the match
+      const { error: lockError } = await supabase
+        .from('match')
+        .update({ status: 'locked' })
+        .eq('id', matchId);
+
+      if (lockError) throw lockError;
+    }
 
     // Get confirmed signups
     const { data: signups, error: signupsError } = await supabase

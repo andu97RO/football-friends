@@ -10,14 +10,53 @@ create table if not exists public.chat_message (
 -- Enable RLS
 alter table public.chat_message enable row level security;
 
--- Policies
-create policy "Users can view messages for matches"
+-- Restrict chat to confirmed participants of that match, plus organizers/admins
+create policy "Match participants can view messages"
   on public.chat_message for select
-  using (auth.role() = 'authenticated');
+  using (
+    exists (
+      select 1 from public.signup s
+      where s.match_id = chat_message.match_id
+      and s.user_id = auth.uid()
+      and s.state = 'confirmed'
+    )
+    or exists (
+      select 1 from public.match m
+      join public.club c on c.id = m.club_id
+      where m.id = chat_message.match_id
+      and c.organizer_id = auth.uid()
+    )
+    or exists (
+      select 1 from public.profile p
+      where p.user_id = auth.uid()
+      and p.is_admin = true
+    )
+  );
 
-create policy "Users can insert messages"
+create policy "Match participants can insert messages"
   on public.chat_message for insert
-  with check (auth.role() = 'authenticated');
+  with check (
+    user_id = auth.uid()
+    and (
+      exists (
+        select 1 from public.signup s
+        where s.match_id = chat_message.match_id
+        and s.user_id = auth.uid()
+        and s.state = 'confirmed'
+      )
+      or exists (
+        select 1 from public.match m
+        join public.club c on c.id = m.club_id
+        where m.id = chat_message.match_id
+        and c.organizer_id = auth.uid()
+      )
+      or exists (
+        select 1 from public.profile p
+        where p.user_id = auth.uid()
+        and p.is_admin = true
+      )
+    )
+  );
 
 -- Enable Realtime
 alter publication supabase_realtime add table public.chat_message;

@@ -6,33 +6,26 @@ import { supabase } from '@/lib/supabase';
 import { theme } from '@/constants/theme';
 import { Platform, View, Text, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { Profile, Match } from '@/lib/types';
-import { getMatchStatus } from '@/lib/utils';
+import { Match } from '@/lib/types';
+import { isSignupWindowOpen } from '@/lib/utils';
 import { isVerifiedSession } from '@/lib/auth-utils';
+import { ensureProfile } from '@/lib/ensure-profile';
 
 export default function TabsLayout() {
   const { session } = useAuthStore();
   const isAuthed = isVerifiedSession(session);
 
-  // Check if user is an admin via profile
+  // Ensure profile exists as soon as tabs load (not only on Profile tab)
   const { data: profile } = useQuery({
     queryKey: ['profile', session?.user?.id],
     queryFn: async () => {
       if (!session?.user?.id) return null;
-
-      const { data, error } = await supabase
-        .from('profile')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
-
-      if (error || !data) return null;
-      return data as Profile;
+      return ensureProfile(session.user.id, session.user.email);
     },
     enabled: isAuthed && !!session?.user?.id,
   });
 
-  // Count open matches for badge
+  // Count open matches for badge (signup window still open)
   const { data: openMatchCount } = useQuery({
     queryKey: ['open-match-count'],
     queryFn: async () => {
@@ -45,10 +38,7 @@ export default function TabsLayout() {
       if (error || !data) return 0;
       
       const now = new Date();
-      return data.filter(match => {
-        const status = getMatchStatus(match as Match, now);
-        return status === 'open';
-      }).length;
+      return data.filter(match => isSignupWindowOpen(match as Match, now)).length;
     },
     refetchInterval: 30000, // Refresh every 30 seconds
   });

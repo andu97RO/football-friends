@@ -1,18 +1,16 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/auth-store';
-import { Match, Signup } from '@/lib/types';
-import { formatMatchTime, getMatchStatus } from '@/lib/utils';
+import { Match, Signup, Profile } from '@/lib/types';
+import { formatMatchTime, getMatchStatus, isSignupWindowOpen } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Animated, { FadeInDown, FadeInUp, Layout, SlideInDown } from 'react-native-reanimated';
 import { theme } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-
-const { width } = Dimensions.get('window');
 
 export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -45,7 +43,6 @@ export default function MatchDetailScreen() {
           queryClient.invalidateQueries({ queryKey: ['signups', id] });
           queryClient.invalidateQueries({ queryKey: ['signup', id, session?.user?.id] });
           queryClient.invalidateQueries({ queryKey: ['matches-with-signups'] });
-          queryClient.invalidateQueries({ queryKey: ['match-capacity', id] });
         }
       )
       .subscribe();
@@ -72,16 +69,23 @@ export default function MatchDetailScreen() {
   // Check if current user is the match organizer
   const isOrganizer = match?.club?.organizer_id === session?.user?.id;
 
-  const { data: matchCapacity } = useQuery({
-    queryKey: ['match-capacity', id],
+  const { data: profile } = useQuery({
+    queryKey: ['profile', session?.user?.id],
     queryFn: async () => {
-      if (!id) return null;
-      const { data, error } = await supabase.rpc('get_match_capacity', { match_ids: [id] });
+      if (!session?.user?.id) return null;
+      const { data, error } = await supabase
+        .from('profile')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
       if (error) throw error;
-      return (data?.[0] as { match_id: string; confirmed_count: number; reserved_count: number }) || null;
+      return data as Profile | null;
     },
-    enabled: !!id,
+    enabled: !!session?.user?.id,
   });
+
+  const isAdmin = profile?.is_admin === true;
+  const canManageTeams = isOrganizer || isAdmin;
 
   const { data: mySignup, refetch: refetchSignup } = useQuery({
     queryKey: ['signup', id, session?.user?.id],
@@ -161,7 +165,6 @@ export default function MatchDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ['signup', id] });
       queryClient.invalidateQueries({ queryKey: ['signups', id] });
       queryClient.invalidateQueries({ queryKey: ['matches-with-signups'] });
-      queryClient.invalidateQueries({ queryKey: ['match-capacity', id] });
       refetchSignup();
       if (data?.state === 'waitlist' && typeof data.position === 'number') {
         Alert.alert('Waitlisted', `You are #${data.position} on the waitlist.`);
@@ -258,12 +261,9 @@ export default function MatchDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ['signup', id] });
       queryClient.invalidateQueries({ queryKey: ['signups', id] });
       queryClient.invalidateQueries({ queryKey: ['matches-with-signups'] });
-      queryClient.invalidateQueries({ queryKey: ['match-capacity', id] });
-      queryClient.invalidateQueries({ queryKey: ['invitations'] });
       refetchSignup();
     },
     onError: (error: any) => {
-      console.error('❌ Cancel mutation error:', error);
       Alert.alert('Error', error.message);
     },
   });
@@ -285,16 +285,38 @@ export default function MatchDetailScreen() {
   }
 
   const status = getMatchStatus(match, now);
-  const signupOpenTime = new Date(match.signup_open_at).getTime();
-  const isOpen = now.getTime() >= signupOpenTime;
+  const isDbLocked = match.status === 'locked' || match.status === 'completed';
   const confirmedCount = signups?.filter((s) => s.state === 'confirmed').length || 0;
   const waitlistCount = signups?.filter((s) => s.state === 'waitlist').length || 0;
-  const reservedCount = matchCapacity?.reserved_count || 0;
-  const occupiedCount = confirmedCount + reservedCount;
+  const occupiedCount = confirmedCount;
   const spotsLeft = Math.max(0, match.spots - occupiedCount);
 
-  const canJoin = isOpen && status === 'open' && (!mySignup || mySignup.state === 'cancelled');
-  const canCancel = mySignup && mySignup.state !== 'cancelled' && status !== 'locked';
+  const canJoin =
+    isSignupWindowOpen(match, now) &&
+    (!mySignup || mySignup.state === 'cancelled');
+  // Cancel until the match is actually DB-locked (not soft-lock)
+  const canCancel =
+    !!mySignup &&
+    mySignup.state !== 'cancelled' &&
+    match.status !== 'locked' &&
+    match.status !== 'completed' &&
+    match.status !== 'cancelled';
+
+  const isConfirmedPlayer = mySignup?.state === 'confirmed';
+  const canAccessChat = isConfirmedPlayer || canManageTeams;
+
+  const myStatusTitle =
+    mySignup?.state === 'confirmed'
+      ? 'You are in!'
+      : mySignup?.state === 'waitlist'
+        ? 'On the waitlist'
+        : '';
+  const myStatusSubtitle =
+    mySignup?.state === 'confirmed'
+      ? 'Confirmed Player'
+      : mySignup?.state === 'waitlist'
+        ? `Waitlist Position #${mySignup.queue_pos}`
+        : '';
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -364,10 +386,8 @@ export default function MatchDetailScreen() {
               <View style={styles.myStatusContent}>
                 <Ionicons name="checkmark-circle" size={24} color="white" />
                 <View style={{ marginLeft: 12 }}>
-                  <Text style={styles.myStatusTitle}>You are in!</Text>
-                  <Text style={styles.myStatusSubtitle}>
-                    {mySignup.state === 'confirmed' ? 'Confirmed Player' : `Waitlist Position #${mySignup.queue_pos}`}
-                  </Text>
+                  <Text style={styles.myStatusTitle}>{myStatusTitle}</Text>
+                  <Text style={styles.myStatusSubtitle}>{myStatusSubtitle}</Text>
                 </View>
               </View>
             </LinearGradient>
@@ -413,7 +433,7 @@ export default function MatchDetailScreen() {
             </Animated.View>
           )}
 
-          {status === 'locked' && (
+          {isDbLocked && (
             <Animated.View entering={FadeInUp.delay(400)}>
               <TouchableOpacity
                 onPress={() => router.push(`/teams/${id}`)}
@@ -429,7 +449,10 @@ export default function MatchDetailScreen() {
             </Animated.View>
           )}
 
-          {isOrganizer && status !== 'locked' && status !== 'cancelled' && confirmedCount >= 2 && (
+          {canManageTeams &&
+            !isDbLocked &&
+            match.status !== 'cancelled' &&
+            confirmedCount >= 2 && (
             <Animated.View entering={FadeInUp.delay(450)}>
               <TouchableOpacity
                 onPress={() => {
@@ -464,6 +487,7 @@ export default function MatchDetailScreen() {
             </Animated.View>
           )}
 
+          {canAccessChat && (
           <Animated.View entering={FadeInUp.delay(500)}>
             <TouchableOpacity
               onPress={() => router.push(`/match/${id}/chat`)}
@@ -480,6 +504,7 @@ export default function MatchDetailScreen() {
               </LinearGradient>
             </TouchableOpacity>
           </Animated.View>
+          )}
         </View>
 
         <View style={styles.listSection}>

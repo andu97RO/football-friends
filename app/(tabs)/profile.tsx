@@ -28,6 +28,7 @@ import {
   sendNotificationToUser,
   unregisterPushNotifications,
 } from "@/lib/notifications";
+import { ensureProfile } from "@/lib/ensure-profile";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -51,36 +52,7 @@ export default function ProfileScreen() {
     queryKey: ["profile", session?.user?.id],
     queryFn: async () => {
       if (!session?.user?.id) return null;
-
-      // First try to get existing profile (don't use .single() to avoid 406 error)
-      const { data, error } = await supabase
-        .from("profile")
-        .select("*")
-        .eq("user_id", session.user.id)
-        .maybeSingle();
-
-      if (error && error.code !== "PGRST116") {
-        throw error;
-      }
-
-      // If profile exists, return it
-      if (data) {
-        return data as Profile;
-      }
-
-      // Profile doesn't exist yet, create it
-      const { data: newProfile, error: createError } = await supabase
-        .from("profile")
-        .insert({
-          user_id: session.user.id,
-          display_name: session.user.email?.split("@")[0] || "Player",
-          rating_base: 3,
-        })
-        .select()
-        .single();
-
-      if (createError) throw createError;
-      return newProfile as Profile;
+      return ensureProfile(session.user.id, session.user.email);
     },
     enabled: !!session?.user?.id,
   });

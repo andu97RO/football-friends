@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/auth-store';
 import { registerForPushNotificationsAsync, setupNotificationHandler } from '@/lib/notifications';
 import { isVerifiedSession } from '@/lib/auth-utils';
+import { ensureProfile } from '@/lib/ensure-profile';
 
 // Ignore specific warnings
 LogBox.ignoreLogs(['Warning: ...']); // Add specific warnings to ignore
@@ -47,11 +48,13 @@ export default function RootLayout() {
     // Set up notification handler
     setupNotificationHandler();
 
-    // Register for push notifications when user is logged in
+    // Ensure profile exists, then register for push notifications
     if (isVerifiedSession(session)) {
-      registerForPushNotificationsAsync(session.user.id).catch((error) => {
-        console.error('Error registering for push notifications:', error);
-      });
+      ensureProfile(session.user.id, session.user.email)
+        .then(() => registerForPushNotificationsAsync(session.user.id))
+        .catch((error) => {
+          console.error('Error ensuring profile / registering push:', error);
+        });
     }
   }, [session]);
 
