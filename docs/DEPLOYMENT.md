@@ -1,6 +1,99 @@
 # 🚀 Deployment Guide
 
-This guide covers deploying the FootyFriends native app to production.
+This guide covers deploying FootyFriends to production, both as a web app on
+Vercel and as native apps on the App Store and Google Play.
+
+- [Web deployment (Vercel)](#web-deployment-vercel) — fastest path to users, no store review
+- [Native deployment (EAS)](#prerequisites-checklist) — everything from "Prerequisites Checklist" onwards
+
+---
+
+# Web Deployment (Vercel)
+
+The same Expo codebase runs in the browser through `react-native-web`. The web
+build is a static single-page app, so there is no server to run and no store
+review to wait for.
+
+## Step 1: Build locally (optional sanity check)
+
+```bash
+npm run build:web        # runs `expo export -p web`, output in dist/
+npx serve dist -s        # -s serves the SPA fallback, mirroring Vercel
+```
+
+## Step 2: Connect the repository
+
+1. In the Vercel dashboard, choose **Add New → Project** and import the GitHub repo.
+2. Leave the framework preset as **Other**. Vercel has no Expo preset, and
+   [`vercel.json`](../vercel.json) already pins `framework: null`, the build
+   command, the output directory, the SPA rewrite and the asset cache headers.
+3. Deploy. Every push to `main` becomes a production deployment and every other
+   branch gets a preview URL.
+
+## Step 3: Environment variables
+
+`EXPO_PUBLIC_*` values are **inlined into the JavaScript bundle at build time**,
+not read at runtime, so they must exist in Vercel's project settings before the
+build runs. Set them for both **Production** and **Preview** — a preview build
+without them fails at startup with `Missing Supabase environment variables`.
+
+| Variable | Example |
+| --- | --- |
+| `EXPO_PUBLIC_SUPABASE_URL` | `https://xyz.supabase.co` |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | `eyJ...` |
+| `EXPO_PUBLIC_APP_SCHEME` | `footy` |
+| `EXPO_PUBLIC_TIMEZONE` | `Europe/Bucharest` |
+
+Never give `SUPABASE_SERVICE_ROLE_KEY` the `EXPO_PUBLIC_` prefix. Anything with
+that prefix ships in plain text to every visitor. The anon key is safe there
+because it is protected by RLS.
+
+## Step 4: Supabase auth configuration
+
+Emailed auth links must be allowed to return to the deployed site. In
+**Supabase Dashboard → Authentication → URL Configuration**:
+
+- **Site URL**: `https://your-domain.com`
+- **Redirect URLs**: add `https://your-domain.com/callback` and, to make preview
+  deployments usable, a wildcard such as `https://*.vercel.app/**`
+
+The app derives the redirect from the current origin (see `getAuthCallbackUrl`
+in `lib/auth-utils.ts`), so previews authenticate against themselves. Note the
+path is `/callback`, not `/auth/callback`: expo-router omits the `(auth)` group
+from URLs.
+
+## Step 5: Post-deploy checks
+
+- [ ] Sign in, then hard-refresh on `/matches` — you should stay signed in
+- [ ] Open a match deep link such as `/match/<id>` directly in a new tab
+- [ ] Trigger an error (for example "Forgot password?" with an empty email) and
+      confirm the dialog appears
+- [ ] Join a match in two browsers and confirm the spot counter updates live
+- [ ] Confirm the tab shows the favicon and the "Football Friends" title
+
+## Known web limitations
+
+- **Push notifications do not work on web.** Expo Push is native-only, so web
+  users receive no "You're In!" waitlist promotion notification. Either add Web
+  Push with VAPID keys or send those notifications by email from an Edge Function.
+- **The build is a single 3.3 MB bundle.** There is no code splitting yet, which
+  is slow on a cold mobile connection.
+- **Prerendering (`web.output: "static"`) does not work yet.** The export fails
+  with `ReferenceError: window is not defined` because the Supabase client reads
+  AsyncStorage during the Node render pass. SPA output is the supported mode.
+
+## Running the e2e suite against a deployment
+
+```bash
+PLAYWRIGHT_BASE_URL=https://your-preview.vercel.app npm run test:e2e
+```
+
+Setting `PLAYWRIGHT_BASE_URL` skips the local dev server and points the suite at
+the deployed URL.
+
+---
+
+# Native Deployment (EAS)
 
 ## Prerequisites Checklist
 
@@ -12,7 +105,7 @@ This guide covers deploying the FootyFriends native app to production.
 - [ ] App icons and splash screens ready (1024x1024)
 - [ ] Privacy policy URL published
 
-## Step 1: Configure EAS
+## Step 1: Configure EAS (native)
 
 1. **Login to Expo**
    ```bash

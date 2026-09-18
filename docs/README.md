@@ -140,10 +140,13 @@ npm run ios
 npm run android
 ```
 
-**Run on web (limited functionality):**
+**Run on web:**
 ```bash
 npm run web
 ```
+
+Web is a supported release target. Push notifications are the one feature that
+does not work there — see [DEPLOYMENT.md](./DEPLOYMENT.md#known-web-limitations).
 
 ## 📂 Project Structure
 
@@ -238,6 +241,17 @@ Events that trigger notifications:
 - **Teams published** after lock
 
 ## 🏗️ Building for Production
+
+### Web Build (Vercel)
+
+```bash
+npm run build:web
+```
+
+Outputs a static single-page app to `dist/`. Deployment is wired up through
+[`vercel.json`](../vercel.json); see
+[DEPLOYMENT.md](./DEPLOYMENT.md#web-deployment-vercel) for the full setup
+including environment variables and Supabase redirect URLs.
 
 ### EAS Build Setup
 
