@@ -1,6 +1,7 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { showAlert } from '@/lib/alert';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/auth-store';
 import { Match, Signup, Profile } from '@/lib/types';
@@ -26,7 +27,6 @@ export default function MatchDetailScreen() {
 
   // Realtime updates for this match (signups change when players join/cancel/accept)
   useEffect(() => {
-    if (Platform.OS === 'web') return;
     if (!id) return;
 
     const channel = supabase
@@ -167,11 +167,11 @@ export default function MatchDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ['matches-with-signups'] });
       refetchSignup();
       if (data?.state === 'waitlist' && typeof data.position === 'number') {
-        Alert.alert('Waitlisted', `You are #${data.position} on the waitlist.`);
+        showAlert('Waitlisted', `You are #${data.position} on the waitlist.`);
       }
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.message);
+      showAlert('Error', error.message);
     },
   });
 
@@ -208,14 +208,14 @@ export default function MatchDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ['match', id] });
       queryClient.invalidateQueries({ queryKey: ['signups', id] });
       queryClient.invalidateQueries({ queryKey: ['matches-with-signups'] });
-      Alert.alert(
+      showAlert(
         'Teams Generated',
         `Successfully created ${data.teams?.length || 0} teams!`,
         [{ text: 'View Teams', onPress: () => router.push(`/teams/${id}`) }]
       );
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.message);
+      showAlert('Error', error.message);
     },
   });
 
@@ -254,9 +254,9 @@ export default function MatchDetailScreen() {
     },
     onSuccess: (data) => {
       if (data.promoted) {
-        Alert.alert('Success', `Spot given to ${data.promoted.displayName}`);
+        showAlert('Success', `Spot given to ${data.promoted.displayName}`);
       } else {
-        Alert.alert('Success', 'Signup cancelled');
+        showAlert('Success', 'Signup cancelled');
       }
       queryClient.invalidateQueries({ queryKey: ['signup', id] });
       queryClient.invalidateQueries({ queryKey: ['signups', id] });
@@ -264,7 +264,7 @@ export default function MatchDetailScreen() {
       refetchSignup();
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.message);
+      showAlert('Error', error.message);
     },
   });
 
@@ -418,7 +418,7 @@ export default function MatchDetailScreen() {
             <Animated.View entering={FadeInUp.delay(400)}>
               <TouchableOpacity
                 onPress={() => {
-                  Alert.alert('Cancel Signup', 'Are you sure you want to cancel?', [
+                  showAlert('Cancel Signup', 'Are you sure you want to cancel?', [
                     { text: 'No', style: 'cancel' },
                     { text: 'Yes', onPress: () => cancelMutation.mutate() },
                   ]);
@@ -456,7 +456,7 @@ export default function MatchDetailScreen() {
             <Animated.View entering={FadeInUp.delay(450)}>
               <TouchableOpacity
                 onPress={() => {
-                  Alert.alert(
+                  showAlert(
                     'Lock & Generate Teams',
                     `This will lock signups and generate ${match.teams_count} balanced teams for ${confirmedCount} players. This cannot be undone.`,
                     [

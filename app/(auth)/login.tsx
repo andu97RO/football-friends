@@ -5,10 +5,10 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { showAlert } from '@/lib/alert';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/auth-store';
 import { StatusBar } from 'expo-status-bar';
@@ -30,7 +30,7 @@ export default function LoginScreen() {
 
   const handleForgotPassword = async () => {
     if (!email) {
-      Alert.alert('Error', 'Please enter your email address first');
+      showAlert('Error', 'Please enter your email address first');
       return;
     }
 
@@ -42,13 +42,13 @@ export default function LoginScreen() {
 
       if (error) throw error;
 
-      Alert.alert(
+      showAlert(
         'Check your email',
         'We sent you a password reset link. Click the link in your email to reset your password.',
         [{ text: 'OK' }]
       );
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to send reset email');
+      showAlert('Error', error.message || 'Failed to send reset email');
     } finally {
       setLoading(false);
     }

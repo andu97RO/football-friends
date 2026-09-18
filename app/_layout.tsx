@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { LogBox, Platform, StatusBar } from 'react-native';
 import Constants from 'expo-constants';
+import AlertHost from '@/components/AlertHost';
 import { theme } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/auth-store';
@@ -81,6 +82,7 @@ export default function RootLayout() {
         <Stack.Screen name="match/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="teams/[id]" options={{ title: 'Teams', headerTransparent: true, headerTintColor: '#fff' }} />
       </Stack>
+      <AlertHost />
     </QueryClientProvider>
   );
 }

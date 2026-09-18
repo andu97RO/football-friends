@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { showAlert } from '@/lib/alert';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -164,7 +165,7 @@ export default function ChatScreen() {
     },
     onError: (_err, _newTodo, context) => {
       queryClient.setQueryData(['chat', id], context?.previousMessages);
-      Alert.alert('Error', 'Failed to send message');
+      showAlert('Error', 'Failed to send message');
     },
   });
 
