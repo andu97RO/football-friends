@@ -52,7 +52,14 @@
       ]
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png",
+      "name": "Football Friends",
+      "shortName": "Footy",
+      "description": "Organize your weekly 6-a-side football matches",
+      "themeColor": "#10b981",
+      "backgroundColor": "#0F172A"
     },
     "plugins": [
       "expo-router",
