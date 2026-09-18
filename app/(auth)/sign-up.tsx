@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
+import { getAuthCallbackUrl } from "@/lib/auth-utils";
 import { supabase } from "@/lib/supabase";
 import { StatusBar } from "expo-status-bar";
 import { Link } from "expo-router";
@@ -50,7 +51,7 @@ export default function SignUpScreen() {
         email,
         password,
         options: {
-          emailRedirectTo: "footy://auth/callback",
+          emailRedirectTo: getAuthCallbackUrl(),
         },
       });
 

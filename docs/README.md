@@ -184,7 +184,7 @@ football-friends/
 
 1. User enters email address
 2. Supabase sends magic link email
-3. User clicks link → opens app via deep link (`footy://auth/callback`)
+3. User clicks link → opens the app via deep link (`footy://callback`) or, on web, `https://<your-domain>/callback`
 4. App exchanges token with Supabase
 5. Session stored in AsyncStorage
 6. User redirected to Matches screen

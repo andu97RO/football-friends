@@ -18,7 +18,7 @@ import { BlurView } from 'expo-blur';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { theme } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { isVerifiedSession } from '@/lib/auth-utils';
+import { getAuthCallbackUrl, isVerifiedSession } from '@/lib/auth-utils';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -37,7 +37,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'footy://auth/callback?type=recovery',
+        redirectTo: getAuthCallbackUrl({ type: 'recovery' }),
       });
 
       if (error) throw error;
