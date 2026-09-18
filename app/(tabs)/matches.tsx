@@ -148,8 +148,6 @@ export default function MatchesScreen() {
 
   // Realtime updates: keep match list fresh without polling
   useEffect(() => {
-    if (Platform.OS === "web") return;
-
     const matchIds = matchesWithSignups?.map((m) => m.id) || [];
 
     if (matchIds.length === 0) return;
