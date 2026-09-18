@@ -82,6 +82,16 @@ from URLs.
   with `ReferenceError: window is not defined` because the Supabase client reads
   AsyncStorage during the Node render pass. SPA output is the supported mode.
 
+## Troubleshooting
+
+**An environment variable change does not show up in the deployed app.**
+`EXPO_PUBLIC_*` values are baked in by a Babel transform whose output Metro
+caches per module, so a stale cache can keep serving the old (or missing)
+value even after the variable changes. On Vercel, use **Redeploy without
+build cache**. Locally, run `rm -rf /tmp/metro-* node_modules/.cache .expo`
+before rebuilding. The symptom is usually
+`Missing Supabase environment variables` thrown at startup.
+
 ## Running the e2e suite against a deployment
 
 ```bash
