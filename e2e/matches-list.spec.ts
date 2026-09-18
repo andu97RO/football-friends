@@ -162,10 +162,6 @@ test.describe('Matches List', () => {
   });
 
   test('should show invitation banner and call accept-invitation', async ({ page }) => {
-    page.on('dialog', async (dialog) => {
-      await dialog.dismiss();
-    });
-
     const matchId = '1';
     const invitationId = 'inv-1';
 
