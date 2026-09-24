@@ -2,6 +2,8 @@
 
 The web candidate is deployed at `https://football-friends-seven.vercel.app`, with Vercel authentication protection enabled for **all** deployments. Its current immutable deployment is `https://football-friends-hwbaxkwxj-bogdan-andreis-projects.vercel.app`. Both the root page and deep links return the Expo SPA through an authenticated Vercel CLI request; anonymous requests redirect to Vercel sign-in. **Public registration is not open.**
 
+Candidate source commit: `bc8a09696da97bcece0c9c4ec689074bc05182c1`. Review: [draft PR #7](https://github.com/andu97RO/football-friends/pull/7). The [GitHub web release checks](https://github.com/andu97RO/football-friends/actions/runs/36004065601) passed on that commit.
+
 The Supabase project is `exqtxouswbcunrgxftzr`. The ordered migration is `supabase/migrations/20260924114413_group_access.sql` (applied as `group_access`). It preserved the original group's 22 matches and 55 signups and created 26 group memberships. The original organizer is owner; all other legacy users are approved members. No legacy account had `is_admin = true`. All prior ratings were copied to that group. See [MIGRATION_REVIEW.md](MIGRATION_REVIEW.md).
 
 Current Edge Function versions: `join-match` v3, `cancel-signup` v7, `lock-and-generate` v7, `swap-players` v2. Obsolete underscore-named and invitation endpoints now return 410; their previous versions are held in the ignored `.release-private/` directory. There were no scheduled cron jobs to retire.
