@@ -1,4 +1,26 @@
 import type { Session, User } from '@supabase/supabase-js';
+import * as Linking from 'expo-linking';
+import { Platform } from 'react-native';
+
+/**
+ * Builds the URL Supabase should send users back to after they open an emailed
+ * auth link (magic link, signup confirmation, password recovery).
+ *
+ * On web this is derived from the current origin so that preview deployments
+ * authenticate against themselves instead of production. The path is
+ * `/callback` rather than `/auth/callback` because expo-router omits the
+ * `(auth)` group from URLs.
+ */
+export function getAuthCallbackUrl(queryParams?: Record<string, string>): string {
+  if (Platform.OS === 'web') {
+    const query = queryParams
+      ? `?${new URLSearchParams(queryParams).toString()}`
+      : '';
+    return `${window.location.origin}/callback${query}`;
+  }
+
+  return Linking.createURL('/callback', { queryParams });
+}
 
 /**
  * Returns true if the session's user is considered "verified" for email/password auth flows.

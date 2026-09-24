@@ -47,7 +47,7 @@ test.describe('Authentication', () => {
   test('should require email verification after signup (no auto-login)', async ({ page }) => {
     await page.goto('/(auth)/sign-up');
 
-    await page.route('**/auth/v1/signup', async (route) => {
+    await page.route('**/auth/v1/signup*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

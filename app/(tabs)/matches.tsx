@@ -5,11 +5,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-  Alert,
   Platform,
   Modal,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { showAlert } from "@/lib/alert";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { Match, Profile } from "@/lib/types";
@@ -148,8 +148,6 @@ export default function MatchesScreen() {
 
   // Realtime updates: keep match list fresh without polling
   useEffect(() => {
-    if (Platform.OS === "web") return;
-
     const matchIds = matchesWithSignups?.map((m) => m.id) || [];
 
     if (matchIds.length === 0) return;
@@ -219,14 +217,14 @@ export default function MatchesScreen() {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
-      Alert.alert("Error", error.message || "Failed to join match");
+      showAlert("Error", error.message || "Failed to join match");
     },
     onSuccess: (data) => {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       if (data.state === "waitlist" && typeof data.position === "number") {
-        Alert.alert("Waitlisted", `You are #${data.position} on the waitlist.`);
+        showAlert("Waitlisted", `You are #${data.position} on the waitlist.`);
       }
       queryClient.invalidateQueries({ queryKey: ["matches-with-signups"] });
       // Invalidate match detail queries for this specific match
@@ -265,13 +263,13 @@ export default function MatchesScreen() {
       }
       queryClient.invalidateQueries({ queryKey: ["matches-with-signups"] });
       setEditingMatch(null);
-      Alert.alert("Success", "Match updated successfully");
+      showAlert("Success", "Match updated successfully");
     },
     onError: (error: any) => {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
-      Alert.alert("Error", error.message || "Failed to update match");
+      showAlert("Error", error.message || "Failed to update match");
     },
   });
 
@@ -290,13 +288,13 @@ export default function MatchesScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       queryClient.invalidateQueries({ queryKey: ["matches-with-signups"] });
-      Alert.alert("Success", "Match deleted successfully");
+      showAlert("Success", "Match deleted successfully");
     },
     onError: (error: any) => {
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
-      Alert.alert("Error", error.message || "Failed to delete match");
+      showAlert("Error", error.message || "Failed to delete match");
     },
   });
 
@@ -316,7 +314,7 @@ export default function MatchesScreen() {
   };
 
   const handleDeleteMatch = (match: MatchWithSignups) => {
-    Alert.alert(
+    showAlert(
       "Delete Match",
       `Are you sure you want to delete the match on ${formatMatchTime(match.kick_off)}? This cannot be undone.`,
       [

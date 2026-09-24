@@ -4,7 +4,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { theme } from '@/constants/theme';
-import { Platform, View, Text, StyleSheet } from 'react-native';
+import { ActivityIndicator, Platform, View, Text, StyleSheet } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Match } from '@/lib/types';
 import { isSignupWindowOpen } from '@/lib/utils';
@@ -44,6 +44,16 @@ export default function TabsLayout() {
   });
 
   const isAdmin = profile?.is_admin === true;
+
+  // `undefined` means the stored session is still being restored. Redirecting
+  // in that window would bounce every hard refresh and deep link on web.
+  if (session === undefined) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={theme.colors.success} />
+      </View>
+    );
+  }
 
   if (!isAuthed) {
     return <Redirect href="/(auth)/login" />;
@@ -118,6 +128,12 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+  },
   badge: {
     position: 'absolute',
     right: -8,

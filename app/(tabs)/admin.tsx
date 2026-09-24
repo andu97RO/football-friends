@@ -4,12 +4,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
   Platform,
   Modal,
   TextInput,
 } from "react-native";
 import { useState } from "react";
+import { showAlert } from "@/lib/alert";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/lib/auth-store";
 import { Profile } from "@/lib/types";
@@ -211,7 +211,7 @@ export default function AdminScreen() {
       queryClient.invalidateQueries({ queryKey: ["allPlayers"] });
     },
     onError: (error: any) => {
-      Alert.alert("Error", error.message);
+      showAlert("Error", error.message);
     },
   });
 
@@ -246,7 +246,7 @@ export default function AdminScreen() {
       setSignupOpenDateTime(dayjs().add(1, "week").hour(12).minute(0));
     },
     onError: (error: any) => {
-      Alert.alert("Error", error.message);
+      showAlert("Error", error.message);
     },
   });
 

@@ -140,10 +140,13 @@ npm run ios
 npm run android
 ```
 
-**Run on web (limited functionality):**
+**Run on web:**
 ```bash
 npm run web
 ```
+
+Web is a supported release target. Push notifications are the one feature that
+does not work there — see [DEPLOYMENT.md](./DEPLOYMENT.md#known-web-limitations).
 
 ## 📂 Project Structure
 
@@ -184,7 +187,7 @@ football-friends/
 
 1. User enters email address
 2. Supabase sends magic link email
-3. User clicks link → opens app via deep link (`footy://auth/callback`)
+3. User clicks link → opens the app via deep link (`footy://callback`) or, on web, `https://<your-domain>/callback`
 4. App exchanges token with Supabase
 5. Session stored in AsyncStorage
 6. User redirected to Matches screen
@@ -238,6 +241,17 @@ Events that trigger notifications:
 - **Teams published** after lock
 
 ## 🏗️ Building for Production
+
+### Web Build (Vercel)
+
+```bash
+npm run build:web
+```
+
+Outputs a static single-page app to `dist/`. Deployment is wired up through
+[`vercel.json`](../vercel.json); see
+[DEPLOYMENT.md](./DEPLOYMENT.md#web-deployment-vercel) for the full setup
+including environment variables and Supabase redirect URLs.
 
 ### EAS Build Setup
 

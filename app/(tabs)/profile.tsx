@@ -4,7 +4,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   Platform,
   Modal,
   TextInput,
@@ -12,6 +11,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { showAlert } from "@/lib/alert";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/lib/auth-store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -77,10 +77,10 @@ export default function ProfileScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       setShowEditModal(false);
-      Alert.alert("Success", "Profile updated successfully");
+      showAlert("Success", "Profile updated successfully");
     },
     onError: (error: any) => {
-      Alert.alert("Error", error.message);
+      showAlert("Error", error.message);
     },
   });
 
@@ -105,7 +105,7 @@ export default function ProfileScreen() {
         uploadAvatar(result.assets[0].uri);
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to pick image");
+      showAlert("Error", "Failed to pick image");
     }
   };
 
@@ -136,7 +136,7 @@ export default function ProfileScreen() {
       setEditAvatar(data.publicUrl);
     } catch (error: any) {
       console.error("Full error:", error);
-      Alert.alert(
+      showAlert(
         "Error",
         `Error uploading image: ${error.message || "Unknown error"}`
       );
@@ -154,17 +154,17 @@ export default function ProfileScreen() {
 
   const handleChangePassword = async () => {
     if (!newPassword || !confirmPassword) {
-      Alert.alert("Error", "Please fill in all fields");
+      showAlert("Error", "Please fill in all fields");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
+      showAlert("Error", "Passwords do not match");
       return;
     }
 
     if (newPassword.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters");
+      showAlert("Error", "Password must be at least 6 characters");
       return;
     }
 
@@ -176,18 +176,18 @@ export default function ProfileScreen() {
 
       if (error) throw error;
 
-      Alert.alert("Success", "Your password has been updated successfully.");
+      showAlert("Success", "Your password has been updated successfully.");
       setShowPasswordModal(false);
       setNewPassword("");
       setConfirmPassword("");
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to update password");
+      showAlert("Error", error.message || "Failed to update password");
     } finally {
       setPasswordLoading(false);
     }
   };
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     const performSignOut = async () => {
       // Clear the push token so a future user of this device doesn't keep
       // receiving notifications meant for this account.
@@ -201,14 +201,7 @@ export default function ProfileScreen() {
       // Navigation is handled by auth guards in layouts (prevents navigating before RootLayout mounts).
     };
 
-    if (Platform.OS === "web") {
-      const confirmed = window.confirm("Are you sure you want to sign out?");
-      if (!confirmed) return;
-      await performSignOut();
-      return;
-    }
-
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+    showAlert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Sign Out",
@@ -220,7 +213,7 @@ export default function ProfileScreen() {
 
   const handleTestLocalNotification = async () => {
     if (Platform.OS === "web") {
-      Alert.alert("Not supported", "Notifications are not supported on web.");
+      showAlert("Not supported", "Notifications are not supported on web.");
       return;
     }
 
@@ -233,14 +226,14 @@ export default function ProfileScreen() {
       });
 
       if (!result.success) {
-        Alert.alert(
+        showAlert(
           "Notification test failed",
           result.error || "Unknown error"
         );
         return;
       }
 
-      Alert.alert("Scheduled", "A local test notification was scheduled.");
+      showAlert("Scheduled", "A local test notification was scheduled.");
     } finally {
       setNotificationLoading(false);
     }
@@ -248,12 +241,12 @@ export default function ProfileScreen() {
 
   const handleTestPushNotification = async () => {
     if (!session?.user?.id) {
-      Alert.alert("Error", "Not authenticated.");
+      showAlert("Error", "Not authenticated.");
       return;
     }
 
     if (Platform.OS === "web") {
-      Alert.alert(
+      showAlert(
         "Not supported",
         "Push notifications are not supported on web."
       );
@@ -269,7 +262,7 @@ export default function ProfileScreen() {
       );
 
       if (!result.success) {
-        Alert.alert(
+        showAlert(
           "Push test failed",
           result.error ||
             "No push token found. Make sure you are on a physical device using a development build, and you have allowed notifications."
@@ -277,7 +270,7 @@ export default function ProfileScreen() {
         return;
       }
 
-      Alert.alert("Sent", "A test push notification was sent.");
+      showAlert("Sent", "A test push notification was sent.");
     } finally {
       setNotificationLoading(false);
     }

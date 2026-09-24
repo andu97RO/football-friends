@@ -5,10 +5,10 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { showAlert } from '@/lib/alert';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/auth-store';
 import { StatusBar } from 'expo-status-bar';
@@ -18,7 +18,7 @@ import { BlurView } from 'expo-blur';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { theme } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { isVerifiedSession } from '@/lib/auth-utils';
+import { getAuthCallbackUrl, isVerifiedSession } from '@/lib/auth-utils';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -30,25 +30,25 @@ export default function LoginScreen() {
 
   const handleForgotPassword = async () => {
     if (!email) {
-      Alert.alert('Error', 'Please enter your email address first');
+      showAlert('Error', 'Please enter your email address first');
       return;
     }
 
     setLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'footy://auth/callback?type=recovery',
+        redirectTo: getAuthCallbackUrl({ type: 'recovery' }),
       });
 
       if (error) throw error;
 
-      Alert.alert(
+      showAlert(
         'Check your email',
         'We sent you a password reset link. Click the link in your email to reset your password.',
         [{ text: 'OK' }]
       );
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to send reset email');
+      showAlert('Error', error.message || 'Failed to send reset email');
     } finally {
       setLoading(false);
     }

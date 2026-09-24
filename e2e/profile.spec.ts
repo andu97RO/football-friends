@@ -92,10 +92,9 @@ test.describe('Profile', () => {
 
   test('should edit profile name', async ({ page }) => {
     await page.getByText('Edit Profile').click();
-    
-    await expect(page.getByText('Edit Profile', { exact: true })).toBeVisible(); // Modal title
-    
+
     const nameInput = page.getByPlaceholder('Enter your name');
+    await expect(nameInput).toBeVisible();
     await nameInput.fill('Updated Name');
     
     await page.getByText('Save').click();
@@ -128,12 +127,11 @@ test.describe('Profile', () => {
       await route.fulfill({ status: 200, body: '{}' });
     });
 
-    // Handle confirm dialog
-    page.on('dialog', async dialog => {
-      await dialog.accept();
-    });
-
     await page.getByText('Sign Out').click();
+
+    // Confirm in the in-app alert dialog (Alert.alert is a no-op on web)
+    await expect(page.getByTestId('alert-dialog')).toBeVisible();
+    await page.getByTestId('alert-button-sign-out').click();
     
     // Should redirect to login
     await expect(page).toHaveURL(/.*login/);

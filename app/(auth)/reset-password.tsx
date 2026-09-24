@@ -5,11 +5,11 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from 'react-native';
+import { showAlert } from '@/lib/alert';
 import { supabase } from '@/lib/supabase';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -27,17 +27,17 @@ export default function ResetPasswordScreen() {
 
   const handleResetPassword = async () => {
     if (!password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
+      showAlert('Error', 'Please fill in all fields');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      showAlert('Error', 'Passwords do not match');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      showAlert('Error', 'Password must be at least 6 characters');
       return;
     }
 
@@ -49,13 +49,13 @@ export default function ResetPasswordScreen() {
 
       if (error) throw error;
 
-      Alert.alert(
+      showAlert(
         'Success',
         'Your password has been updated successfully.',
         [{ text: 'OK', onPress: () => router.replace('/(tabs)/matches') }]
       );
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to reset password');
+      showAlert('Error', error.message || 'Failed to reset password');
     } finally {
       setLoading(false);
     }

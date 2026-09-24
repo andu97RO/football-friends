@@ -1,6 +1,7 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { showAlert } from '@/lib/alert';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/auth-store';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -114,10 +115,10 @@ export default function TeamsScreen() {
       queryClient.invalidateQueries({ queryKey: ['teams', id] });
       setShowMoveModal(false);
       setSelectedPlayer(null);
-      Alert.alert('Success', 'Player moved successfully');
+      showAlert('Success', 'Player moved successfully');
     },
     onError: (error: any) => {
-      Alert.alert('Error', error.message || 'Failed to move player');
+      showAlert('Error', error.message || 'Failed to move player');
     },
   });
 
