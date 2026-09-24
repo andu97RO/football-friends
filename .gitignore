@@ -69,3 +69,9 @@ test-results/
 
 # Supabase temp files (may contain sensitive connection strings)
 supabase/.temp/
+
+# Private release inventory and backups
+.release-private/
+.vercel/
+output/
+.vercel

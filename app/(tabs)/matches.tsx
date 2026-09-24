@@ -1,3 +1,4 @@
+import { useGroups } from '@/lib/groups';
 import {
   View,
   Text,
@@ -12,7 +13,7 @@ import { useRouter } from "expo-router";
 import { showAlert } from "@/lib/alert";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { Match, Profile } from "@/lib/types";
+import { Match } from "@/lib/types";
 import { formatMatchTime, formatMatchTimeShort, getMatchStatus, isSignupWindowOpen } from "@/lib/utils";
 import { useEffect, useState, useCallback } from "react";
 import DateTimePicker from "@/components/DateTimePicker";
@@ -46,7 +47,6 @@ type MatchSection = {
   data: MatchWithSignups[];
 };
 
-const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 export default function MatchesScreen() {
   const router = useRouter();
@@ -60,24 +60,7 @@ export default function MatchesScreen() {
   const [editKickOff, setEditKickOff] = useState(dayjs());
   const [editSignupOpen, setEditSignupOpen] = useState(dayjs());
 
-  // Check if user is admin
-  const { data: profile } = useQuery({
-    queryKey: ["profile", session?.user?.id],
-    queryFn: async () => {
-      if (!session?.user?.id) return null;
-      const { data, error } = await supabase
-        .from("profile")
-        .select("*")
-        .eq("user_id", session.user.id)
-        .maybeSingle();
-      if (error || !data) return null;
-      return data as Profile;
-    },
-    enabled: !!session?.user?.id,
-  });
-
-  const isAdmin = profile?.is_admin === true;
-
+  const { current, isAdmin } = useGroups();
   useEffect(() => {
     const interval = setInterval(() => {
       setNow(new Date());
@@ -91,11 +74,12 @@ export default function MatchesScreen() {
     refetch,
     isRefetching,
   } = useQuery({
-    queryKey: ["matches-with-signups", session?.user?.id],
+    queryKey: ["matches-with-signups", session?.user?.id, current?.club_id],
     queryFn: async () => {
       const { data: matches, error } = await supabase
         .from("match")
         .select("*")
+        .eq("club_id", current!.club_id)
         .gte("kick_off", new Date().toISOString())
         .order("kick_off", { ascending: true });
 
@@ -144,6 +128,7 @@ export default function MatchesScreen() {
           null,
       })) as MatchWithSignups[];
     },
+    enabled: !!current,
   });
 
   // Realtime updates: keep match list fresh without polling
@@ -153,7 +138,7 @@ export default function MatchesScreen() {
     if (matchIds.length === 0) return;
 
     const channel = supabase
-      .channel(`matches:changes:${session?.user?.id || "anon"}`)
+      .channel(`matches:${current?.club_id}:${session?.user?.id}`)
       .on(
         "postgres_changes",
         {
@@ -172,7 +157,7 @@ export default function MatchesScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [matchesWithSignups, session?.user?.id, queryClient]);
+  }, [matchesWithSignups, session?.user?.id, current?.club_id, queryClient]);
 
   const joinMutation = useMutation({
     mutationFn: async (matchId: string) => {
@@ -206,7 +191,7 @@ export default function MatchesScreen() {
         position: result.position as number | undefined,
       };
     },
-    onMutate: async (matchId) => {
+    onMutate: async (_matchId) => {
       if (Platform.OS !== "web") {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
@@ -415,7 +400,7 @@ export default function MatchesScreen() {
   const renderMatch = ({
     item,
     index,
-    section,
+    section: _section,
   }: {
     item: MatchWithSignups;
     index: number;
@@ -659,6 +644,8 @@ export default function MatchesScreen() {
       )}
     </Animated.View>
   );
+
+  if (!current) return <View style={styles.container}><Text style={{ color: theme.colors.text, padding: 24 }}>Choose or create a group to see matches.</Text><TouchableOpacity onPress={() => router.push('/groups')}><Text style={{ color: theme.colors.primary, padding: 24 }}>Find groups</Text></TouchableOpacity></View>;
 
   if (isLoading) {
     return (

@@ -8,11 +8,11 @@ import { Profile } from '@/lib/types';
  */
 export async function ensureProfile(
   userId: string,
-  email?: string | null
+  _email?: string | null
 ): Promise<Profile> {
   const { data, error } = await supabase
     .from('profile')
-    .select('*')
+    .select('user_id,display_name,avatar_url,created_at')
     .eq('user_id', userId)
     .maybeSingle();
 
@@ -24,16 +24,10 @@ export async function ensureProfile(
     return data as Profile;
   }
 
-  const { data: newProfile, error: createError } = await supabase
-    .from('profile')
-    .insert({
-      user_id: userId,
-      display_name: email?.split('@')[0] || 'Player',
-      rating_base: 3,
-    })
-    .select()
-    .single();
-
+  const { error: createError } = await supabase.rpc('initialize_profile');
   if (createError) throw createError;
+  const { data: newProfile, error: readError } = await supabase.from('profile')
+    .select('user_id,display_name,avatar_url,created_at').eq('user_id', userId).single();
+  if (readError) throw readError;
   return newProfile as Profile;
 }

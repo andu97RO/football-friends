@@ -1,3 +1,4 @@
+import { useAuthStore } from '@/lib/auth-store';
 import { useState } from 'react';
 import {
   View,
@@ -48,6 +49,7 @@ export default function ResetPasswordScreen() {
       });
 
       if (error) throw error;
+      useAuthStore.getState().setRecovery(false);
 
       showAlert(
         'Success',

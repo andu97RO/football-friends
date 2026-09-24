@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Platform, StyleSheet, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, Platform, StyleSheet } from 'react-native';
 import RNDateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
@@ -29,7 +29,6 @@ export default function DateTimePicker({
   minimumDate,
 }: DateTimePickerProps) {
   const [show, setShow] = useState(false);
-  const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -72,28 +71,6 @@ export default function DateTimePicker({
   const getIcon = () => {
     if (mode === 'time') return 'time-outline';
     return 'calendar-outline';
-  };
-
-  // Web-specific handler
-  const handleWebChange = (event: any) => {
-    const newDate = new Date(event.target.value);
-    if (!isNaN(newDate.getTime())) {
-      onChange(newDate);
-    }
-  };
-
-  // Format value for web input
-  const getWebInputValue = () => {
-    if (mode === 'time') return dayjs(value).format('HH:mm');
-    if (mode === 'date') return dayjs(value).format('YYYY-MM-DD');
-    return dayjs(value).format('YYYY-MM-DDTHH:mm');
-  };
-
-  // Get HTML input type for web
-  const getWebInputType = () => {
-    if (mode === 'time') return 'time';
-    if (mode === 'date') return 'date';
-    return 'datetime-local';
   };
 
   if (Platform.OS === 'web') {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { supabase } from '@/lib/supabase';
@@ -12,14 +12,11 @@ export default function AuthCallbackScreen() {
   const [status, setStatus] = useState('Processing...');
 
   useEffect(() => {
-    handleCallback();
-  }, []);
-
-  const handleCallback = async () => {
+    const handleCallback = async () => {
     try {
       // Get the full URL to check for hash fragments
-      const url = await Linking.getInitialURL();
-      let isRecovery = false;
+      const url = Platform.OS === "web" ? window.location.href : await Linking.getInitialURL();
+      let isRecovery = useAuthStore.getState().recovery;
 
       // Check if this is a recovery flow from the URL hash
       if (url) {
@@ -67,7 +64,7 @@ export default function AuthCallbackScreen() {
           setStatus('Redirecting to password reset...');
           router.replace('/(auth)/reset-password');
         } else {
-          router.replace('/(tabs)/matches');
+          router.replace(isRecovery || useAuthStore.getState().recovery ? '/(auth)/reset-password' : '/(tabs)/matches');
         }
       } else {
         // If no tokens, try to get the current session
@@ -77,7 +74,7 @@ export default function AuthCallbackScreen() {
 
         if (session) {
           setSession(session);
-          router.replace('/(tabs)/matches');
+          router.replace(isRecovery || useAuthStore.getState().recovery ? '/(auth)/reset-password' : '/(tabs)/matches');
         } else {
           throw new Error('No session found');
         }
@@ -86,7 +83,9 @@ export default function AuthCallbackScreen() {
       console.error('Auth callback error:', error);
       router.replace('/(auth)/login');
     }
-  };
+    };
+    void handleCallback();
+  }, [params.type, params.access_token, params.refresh_token, router, setSession]);
 
   return (
     <View style={styles.container}>

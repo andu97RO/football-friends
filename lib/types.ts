@@ -3,14 +3,13 @@ export interface Profile {
   display_name: string;
   rating_base: number;
   avatar_url?: string;
-  is_admin?: boolean;
   created_at: string;
 }
 
 export interface Club {
   id: string;
   name: string;
-  organizer_id: string;
+  description: string;
   created_at: string;
 }
 
@@ -68,4 +67,14 @@ export interface AuditLog {
   action: string;
   meta: Record<string, any> | null;
   created_at: string;
+}
+
+export interface GroupMembership {
+  club_id: string;
+  user_id: string;
+  role: 'owner' | 'admin' | 'member';
+  status: 'pending' | 'approved' | 'rejected';
+  rating: number;
+  created_at: string;
+  club: Club;
 }

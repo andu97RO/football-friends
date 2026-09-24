@@ -31,7 +31,7 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: 'npm run web',
+        command: 'node scripts/serve-web.mjs',
         url: baseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 120 * 1000,

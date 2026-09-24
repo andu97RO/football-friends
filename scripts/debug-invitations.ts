@@ -26,7 +26,7 @@ async function debugInvitations() {
 
   // 1. Check if waitlist_invitation table exists
   console.log('\n1️⃣  Checking if waitlist_invitation table exists...');
-  const { data: tables, error: tableError } = await supabase
+  const { error: tableError } = await supabase
     .from('waitlist_invitation')
     .select('id')
     .limit(1);
@@ -122,7 +122,7 @@ async function debugInvitations() {
   // 6. Test invitation query (as regular user would see)
   console.log('\n6️⃣  Testing invitation query (simulated user view)...');
   const testUserId = '00000000-0000-0000-0000-000000000000'; // Dummy ID
-  const { data: userInvitations, error: userInvError } = await supabase
+  const { error: userInvError } = await supabase
     .from('waitlist_invitation')
     .select('*, match:match_id(kick_off)')
     .eq('user_id', testUserId)

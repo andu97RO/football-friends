@@ -1,0 +1,9 @@
+# Original group migration review
+
+Live inventory on 24 September 2026 found one group, **Monday Friends**, with organizer **Bogdan Andrei Admin**, 26 Auth users, 24 existing profiles, 22 matches, 55 match signups, three teams, two assignments, two rating snapshots, five chat messages, and 263 audit rows. The organizer is the only profile with the legacy `is_admin` flag.
+
+The [group migration](../supabase/migrations/20260924114413_group_access.sql) runs one transaction. It creates profiles for the two users who lack one, makes the original organizer the group owner, copies any other existing global admins as group admins, and approves the remaining users as members. Each user's old profile rating becomes their rating in Monday Friends. An unverified user remains unable to read group records until their email is confirmed. Existing matches, signups, teams, chat, ratings, and audit entries stay in place. The migration refuses to infer a mapping if more than one legacy group exists.
+
+A disposable PostgreSQL rehearsal loaded the saved application rows and 26 Auth-user metadata records, applied the migration, and checked counts and ratings. Original data and deployed function versions are saved in `.release-private/` (ignored by Git; keep this directory private). Supabase reports no physical backups or PITR for this project, so the local snapshot is **not a full database backup**. In particular, it does not contain Auth password hashes or private database internals. Keep the existing project available and do not use this snapshot as a complete database restore.
+
+After deployment, recheck the original counts and the group roles before opening registration. Retain the local snapshot and prior Edge Function versions until the release is stable. A frontend rollback must preserve the new access restrictions, so reverting this migration is not a safe rollback plan.

@@ -23,6 +23,7 @@ export default function SignUpScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [rating, setRating] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -45,12 +46,15 @@ export default function SignUpScreen() {
       return;
     }
 
+    if (rating === null) { setError("Choose your starting rating from 0 to 5 stars"); return; }
+
     setLoading(true);
     try {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          data: { initial_rating: rating },
           emailRedirectTo: getAuthCallbackUrl(),
         },
       });
@@ -173,6 +177,20 @@ export default function SignUpScreen() {
                   autoComplete="password-new"
                   editable={!loading}
                 />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>How would you rate your football skills?</Text>
+                <Text style={styles.subtitle}>0 = beginner · 5 = advanced. Group admins can adjust this later.</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
+                  {[0, 1, 2, 3, 4, 5].map((value) => (
+                    <TouchableOpacity key={value} accessibilityRole="radio" accessibilityState={{ checked: rating === value }}
+                      accessibilityLabel={`${value} stars`} disabled={loading} onPress={() => setRating(value)}
+                      style={{ padding: 10, borderRadius: 8, backgroundColor: rating === value ? theme.colors.primary : theme.colors.surface }}>
+                      <Text style={{ color: theme.colors.text }}>{value} ★</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
 
               <TouchableOpacity

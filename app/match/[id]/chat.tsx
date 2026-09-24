@@ -11,7 +11,6 @@ import { theme } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { Match, Profile, Signup } from '@/lib/types';
 
 dayjs.extend(relativeTime);
 
@@ -39,39 +38,16 @@ export default function ChatScreen() {
     queryFn: async () => {
       if (!session?.user?.id || !id) return { allowed: false };
 
-      const [{ data: signup }, { data: match }, { data: profile }] = await Promise.all([
-        supabase
-          .from('signup')
-          .select('state')
-          .eq('match_id', id)
-          .eq('user_id', session.user.id)
-          .maybeSingle(),
-        supabase
-          .from('match')
-          .select('club:club_id(organizer_id)')
-          .eq('id', id)
-          .single(),
-        supabase
-          .from('profile')
-          .select('is_admin')
-          .eq('user_id', session.user.id)
-          .maybeSingle(),
-      ]);
-
-      const isConfirmed = (signup as Signup | null)?.state === 'confirmed';
-      const isOrganizer =
-        (match as Match & { club?: { organizer_id: string } } | null)?.club?.organizer_id ===
-        session.user.id;
-      const isAdmin = (profile as Profile | null)?.is_admin === true;
-
-      return { allowed: isConfirmed || isOrganizer || isAdmin };
+      const { data, error } = await supabase.rpc('can_access_chat', { m: id });
+      if (error) throw error;
+      return { allowed: data === true };
     },
     enabled: !!session?.user?.id && !!id,
   });
 
   // Fetch messages
   const { data: messages, isLoading } = useQuery({
-    queryKey: ['chat', id],
+    queryKey: ['chat', id, session?.user.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('chat_message')
@@ -90,7 +66,7 @@ export default function ChatScreen() {
     if (!access?.allowed) return;
 
     const channel = supabase
-      .channel(`chat:${id}`)
+      .channel(`chat:${id}:${session?.user.id}`)
       .on(
         'postgres_changes',
         {
@@ -108,7 +84,7 @@ export default function ChatScreen() {
 
           const newMsg = { ...payload.new, profile } as ChatMessage;
 
-          queryClient.setQueryData(['chat', id], (old: ChatMessage[] = []) => {
+          queryClient.setQueryData(['chat', id, session?.user.id], (old: ChatMessage[] = []) => {
              if (old.find(m => m.id === newMsg.id)) return old;
 
              const filteredOld = old.filter(m => {
@@ -129,7 +105,7 @@ export default function ChatScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, queryClient, access?.allowed]);
+  }, [id, queryClient, access?.allowed, session?.user.id]);
 
   const sendMessageMutation = useMutation({
     mutationFn: async (content: string) => {
@@ -144,8 +120,8 @@ export default function ChatScreen() {
       if (error) throw error;
     },
     onMutate: async (content) => {
-      await queryClient.cancelQueries({ queryKey: ['chat', id] });
-      const previousMessages = queryClient.getQueryData(['chat', id]);
+      await queryClient.cancelQueries({ queryKey: ['chat', id, session?.user.id] });
+      const previousMessages = queryClient.getQueryData(['chat', id, session?.user.id]);
 
       const optimisticMessage: ChatMessage = {
         id: 'temp-' + Date.now(),
@@ -158,13 +134,13 @@ export default function ChatScreen() {
         },
       };
 
-      queryClient.setQueryData(['chat', id], (old: ChatMessage[] = []) => [...old, optimisticMessage]);
+      queryClient.setQueryData(['chat', id, session?.user.id], (old: ChatMessage[] = []) => [...old, optimisticMessage]);
       setNewMessage('');
       
       return { previousMessages };
     },
     onError: (_err, _newTodo, context) => {
-      queryClient.setQueryData(['chat', id], context?.previousMessages);
+      queryClient.setQueryData(['chat', id, session?.user.id], context?.previousMessages);
       showAlert('Error', 'Failed to send message');
     },
   });

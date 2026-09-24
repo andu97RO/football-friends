@@ -1,10 +1,11 @@
+import { useGroupRole } from '@/lib/groups';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { showAlert } from '@/lib/alert';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/auth-store';
-import { Match, Signup, Profile } from '@/lib/types';
+import { Match, Signup } from '@/lib/types';
 import { formatMatchTime, getMatchStatus, isSignupWindowOpen } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -53,39 +54,22 @@ export default function MatchDetailScreen() {
   }, [id, session?.user?.id, queryClient]);
 
   const { data: match, isLoading: matchLoading } = useQuery({
-    queryKey: ['match', id],
+    queryKey: ['match', id, session?.user.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('match')
-        .select('*, club:club_id(organizer_id)')
+        .select('*')
         .eq('id', id)
         .single();
 
       if (error) throw error;
-      return data as Match & { club: { organizer_id: string } };
+      return data as Match;
     },
   });
 
-  // Check if current user is the match organizer
-  const isOrganizer = match?.club?.organizer_id === session?.user?.id;
-
-  const { data: profile } = useQuery({
-    queryKey: ['profile', session?.user?.id],
-    queryFn: async () => {
-      if (!session?.user?.id) return null;
-      const { data, error } = await supabase
-        .from('profile')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data as Profile | null;
-    },
-    enabled: !!session?.user?.id,
-  });
-
-  const isAdmin = profile?.is_admin === true;
-  const canManageTeams = isOrganizer || isAdmin;
+  const { data: role } = useGroupRole(match?.club_id);
+  const isAdmin = role === 'owner' || role === 'admin';
+  const canManageTeams = isAdmin;
 
   const { data: mySignup, refetch: refetchSignup } = useQuery({
     queryKey: ['signup', id, session?.user?.id],
@@ -106,7 +90,7 @@ export default function MatchDetailScreen() {
   });
 
   const { data: signups } = useQuery({
-    queryKey: ['signups', id],
+    queryKey: ['signups', id, session?.user.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('signup')
@@ -205,7 +189,7 @@ export default function MatchDetailScreen() {
       return result;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['match', id] });
+      queryClient.invalidateQueries({ queryKey: ['match', id, session?.user.id] });
       queryClient.invalidateQueries({ queryKey: ['signups', id] });
       queryClient.invalidateQueries({ queryKey: ['matches-with-signups'] });
       showAlert(
@@ -254,7 +238,7 @@ export default function MatchDetailScreen() {
     },
     onSuccess: (data) => {
       if (data.promoted) {
-        showAlert('Success', `Spot given to ${data.promoted.displayName}`);
+        showAlert('Success', 'The next waitlisted player has been confirmed.');
       } else {
         showAlert('Success', 'Signup cancelled');
       }
