@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, Platform, StyleSheet } from 'react-native';
 import RNDateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,8 +9,9 @@ import { theme } from '@/constants/theme';
 let ReactDatePicker: any;
 if (Platform.OS === 'web') {
   ReactDatePicker = require('react-datepicker').default;
-  // CSS not needed - using custom inline styles below
-  // require('react-datepicker/dist/react-datepicker.css');
+  // The theme rules below only override colors; the library stylesheet supplies
+  // the calendar grid, navigation controls, and time list layout.
+  require('react-datepicker/dist/react-datepicker.css');
 }
 
 interface DateTimePickerProps {
@@ -29,6 +30,8 @@ export default function DateTimePicker({
   minimumDate,
 }: DateTimePickerProps) {
   const [show, setShow] = useState(false);
+  const [androidStep, setAndroidStep] = useState<'date' | 'time'>('date');
+  const pendingAndroidDate = useRef<Date | null>(null);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -43,8 +46,27 @@ export default function DateTimePicker({
   const handleChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
     // Android: Picker shows as dialog, closes on selection/dismissal
     if (Platform.OS === 'android') {
+      if (event.type !== 'set' || !selectedDate) {
+        setShow(false);
+        pendingAndroidDate.current = null;
+        return;
+      }
+
+      if (mode === 'datetime' && androidStep === 'date') {
+        const dateWithCurrentTime = new Date(selectedDate);
+        dateWithCurrentTime.setHours(value.getHours(), value.getMinutes(), value.getSeconds(), value.getMilliseconds());
+        pendingAndroidDate.current = dateWithCurrentTime;
+        setAndroidStep('time');
+        return;
+      }
+
       setShow(false);
-      if (event.type === 'set' && selectedDate) {
+      if (mode === 'datetime' && pendingAndroidDate.current) {
+        const combinedDate = new Date(pendingAndroidDate.current);
+        combinedDate.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0);
+        pendingAndroidDate.current = null;
+        onChange(combinedDate);
+      } else {
         onChange(selectedDate);
       }
     }
@@ -223,7 +245,11 @@ export default function DateTimePicker({
       {label && <Text style={styles.label}>{label}</Text>}
       <TouchableOpacity
         style={styles.button}
-        onPress={() => setShow(!show)}
+        onPress={() => {
+          pendingAndroidDate.current = null;
+          setAndroidStep('date');
+          setShow(!show);
+        }}
         activeOpacity={0.7}
       >
         <Ionicons name={getIcon()} size={20} color={theme.colors.success} />
@@ -233,12 +259,13 @@ export default function DateTimePicker({
       {/* Android: Renders as a dialog when 'show' is true */}
       {Platform.OS === 'android' && show && (
         <RNDateTimePicker
+          key={mode === 'datetime' ? androidStep : mode}
           testID="dateTimePicker"
-          value={value}
-          mode={mode}
+          value={pendingAndroidDate.current ?? value}
+          mode={mode === 'datetime' ? androidStep : mode}
           display="default"
           onChange={handleChange}
-          minimumDate={minimumDate}
+          minimumDate={mode === 'time' || androidStep === 'time' && mode === 'datetime' ? undefined : minimumDate}
         />
       )}
 
