@@ -1,8 +1,8 @@
+import { useAuthStore } from '@/lib/auth-store';
 import { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
@@ -18,6 +18,7 @@ import { BlurView } from 'expo-blur';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { theme } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import PasswordInput from '@/components/PasswordInput';
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
@@ -48,6 +49,7 @@ export default function ResetPasswordScreen() {
       });
 
       if (error) throw error;
+      useAuthStore.getState().setRecovery(false);
 
       showAlert(
         'Success',
@@ -88,13 +90,13 @@ export default function ResetPasswordScreen() {
             <BlurView intensity={20} tint="dark" style={styles.formCard}>
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>New Password</Text>
-                <TextInput
+                <PasswordInput
+                  label="New Password"
                   style={styles.input}
                   placeholder="Enter new password"
                   placeholderTextColor={theme.colors.textSecondary}
                   value={password}
                   onChangeText={setPassword}
-                  secureTextEntry
                   autoCapitalize="none"
                   autoComplete="password-new"
                   editable={!loading}
@@ -103,13 +105,13 @@ export default function ResetPasswordScreen() {
 
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Confirm Password</Text>
-                <TextInput
+                <PasswordInput
+                  label="Confirm Password"
                   style={styles.input}
                   placeholder="Confirm new password"
                   placeholderTextColor={theme.colors.textSecondary}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
-                  secureTextEntry
                   autoCapitalize="none"
                   autoComplete="password-new"
                   editable={!loading}
@@ -221,4 +223,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

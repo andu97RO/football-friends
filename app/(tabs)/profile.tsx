@@ -1,3 +1,4 @@
+import { useGroups } from '@/lib/groups';
 import {
   View,
   Text,
@@ -10,12 +11,10 @@ import {
   Image,
   ActivityIndicator,
 } from "react-native";
-import { useRouter } from "expo-router";
 import { showAlert } from "@/lib/alert";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/lib/auth-store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Profile } from "@/lib/types";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import Animated, { FadeInDown, ZoomIn } from "react-native-reanimated";
@@ -29,9 +28,9 @@ import {
   unregisterPushNotifications,
 } from "@/lib/notifications";
 import { ensureProfile } from "@/lib/ensure-profile";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function ProfileScreen() {
-  const router = useRouter();
   const { session, setSession } = useAuthStore();
   const queryClient = useQueryClient();
 
@@ -48,6 +47,7 @@ export default function ProfileScreen() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [notificationLoading, setNotificationLoading] = useState(false);
 
+  const { current } = useGroups();
   const { data: profile, isLoading } = useQuery({
     queryKey: ["profile", session?.user?.id],
     queryFn: async () => {
@@ -68,7 +68,7 @@ export default function ProfileScreen() {
         .from("profile")
         .update(updates)
         .eq("user_id", session.user.id)
-        .select()
+        .select("user_id,display_name,avatar_url,created_at")
         .single();
 
       if (error) throw error;
@@ -104,7 +104,7 @@ export default function ProfileScreen() {
       if (!result.canceled && result.assets[0].uri) {
         uploadAvatar(result.assets[0].uri);
       }
-    } catch (error) {
+    } catch {
       showAlert("Error", "Failed to pick image");
     }
   };
@@ -117,13 +117,16 @@ export default function ProfileScreen() {
       const response = await fetch(uri);
       const blob = await response.blob();
 
-      const fileName = `${session?.user?.id}/${Date.now()}.jpg`;
+      if (blob.size > 2 * 1024 * 1024) throw new Error('Choose an image under 2 MB');
+      const extensions: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+      if (!extensions[blob.type]) throw new Error('Choose a JPEG, PNG or WebP image');
+      const fileName = `${session?.user?.id}/${Date.now()}.${extensions[blob.type]}`;
       const filePath = `${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("avatars")
         .upload(filePath, blob, {
-          contentType: "image/jpeg",
+          contentType: blob.type,
           upsert: true,
         });
 
@@ -355,7 +358,7 @@ export default function ProfileScreen() {
               <Ionicons name="star" size={24} color={theme.colors.warning} />
               <Text style={styles.statTitle}>Player Rating</Text>
             </View>
-            <Text style={styles.statValue}>{profile?.rating_base || 3}</Text>
+            <Text style={styles.statValue}>{current?.rating ?? "—"}</Text>
             <Text style={styles.statLabel}>Base Rating</Text>
           </BlurView>
         </Animated.View>
@@ -549,26 +552,26 @@ export default function ProfileScreen() {
 
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>New Password</Text>
-                <TextInput
+                <PasswordInput
+                  label="New Password"
                   style={styles.input}
                   value={newPassword}
                   onChangeText={setNewPassword}
                   placeholder="Enter new password"
                   placeholderTextColor={theme.colors.textSecondary}
-                  secureTextEntry
                   autoCapitalize="none"
                 />
               </View>
 
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Confirm Password</Text>
-                <TextInput
+                <PasswordInput
+                  label="Confirm Password"
                   style={styles.input}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   placeholder="Confirm new password"
                   placeholderTextColor={theme.colors.textSecondary}
-                  secureTextEntry
                   autoCapitalize="none"
                 />
               </View>

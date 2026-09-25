@@ -19,6 +19,7 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { theme } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { getAuthCallbackUrl, isVerifiedSession } from '@/lib/auth-utils';
+import PasswordInput from '@/components/PasswordInput';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -138,13 +139,13 @@ export default function LoginScreen() {
 
             <Animated.View entering={FadeInUp} style={styles.inputContainer}>
               <Text style={styles.label}>Password</Text>
-              <TextInput
+              <PasswordInput
+                label="Password"
                 style={styles.input}
                 placeholder="Your password"
                 placeholderTextColor={theme.colors.textSecondary}
                 value={password}
                 onChangeText={setPassword}
-                secureTextEntry
                 autoCapitalize="none"
                 autoComplete="password"
                 editable={!loading}

@@ -1,0 +1,8 @@
+.release-private
+.env*
+node_modules
+.git
+dist
+playwright-report
+test-results
+output
