@@ -18,6 +18,7 @@ import { BlurView } from "expo-blur";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { theme } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function SignUpScreen() {
   const [email, setEmail] = useState("");
@@ -151,13 +152,13 @@ export default function SignUpScreen() {
 
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Password</Text>
-                <TextInput
+                <PasswordInput
+                  label="Password"
                   style={styles.input}
                   placeholder="Create a password"
                   placeholderTextColor={theme.colors.textSecondary}
                   value={password}
                   onChangeText={setPassword}
-                  secureTextEntry
                   autoCapitalize="none"
                   autoComplete="password-new"
                   editable={!loading}
@@ -166,13 +167,13 @@ export default function SignUpScreen() {
 
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Confirm Password</Text>
-                <TextInput
+                <PasswordInput
+                  label="Confirm Password"
                   style={styles.input}
                   placeholder="Confirm your password"
                   placeholderTextColor={theme.colors.textSecondary}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
-                  secureTextEntry
                   autoCapitalize="none"
                   autoComplete="password-new"
                   editable={!loading}

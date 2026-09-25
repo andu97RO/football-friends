@@ -28,6 +28,7 @@ import {
   unregisterPushNotifications,
 } from "@/lib/notifications";
 import { ensureProfile } from "@/lib/ensure-profile";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function ProfileScreen() {
   const { session, setSession } = useAuthStore();
@@ -551,26 +552,26 @@ export default function ProfileScreen() {
 
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>New Password</Text>
-                <TextInput
+                <PasswordInput
+                  label="New Password"
                   style={styles.input}
                   value={newPassword}
                   onChangeText={setNewPassword}
                   placeholder="Enter new password"
                   placeholderTextColor={theme.colors.textSecondary}
-                  secureTextEntry
                   autoCapitalize="none"
                 />
               </View>
 
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Confirm Password</Text>
-                <TextInput
+                <PasswordInput
+                  label="Confirm Password"
                   style={styles.input}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   placeholder="Confirm new password"
                   placeholderTextColor={theme.colors.textSecondary}
-                  secureTextEntry
                   autoCapitalize="none"
                 />
               </View>
