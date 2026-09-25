@@ -80,7 +80,6 @@ export default function MatchesScreen() {
         .from("match")
         .select("*")
         .eq("club_id", current!.club_id)
-        .gte("kick_off", new Date().toISOString())
         .order("kick_off", { ascending: true });
 
       if (error) throw error;
@@ -319,8 +318,13 @@ export default function MatchesScreen() {
     const openMatches: MatchWithSignups[] = [];
     const waitingMatches: MatchWithSignups[] = [];
     const lockedMatches: MatchWithSignups[] = [];
+    const pastMatches: MatchWithSignups[] = [];
 
     matchesWithSignups.forEach((match) => {
+      if (new Date(match.kick_off).getTime() <= now.getTime()) {
+        pastMatches.push(match);
+        return;
+      }
       const status = getMatchStatus(match, now);
       if (status === "open") {
         openMatches.push(match);
@@ -366,6 +370,14 @@ export default function MatchesScreen() {
         title: "Locked",
         subtitle: "Teams are set",
         data: lockedMatches,
+      });
+    }
+
+    if (pastMatches.length > 0) {
+      sections.push({
+        title: "Past Matches",
+        subtitle: "Open a match to visit its chat",
+        data: pastMatches.reverse(),
       });
     }
 
@@ -561,7 +573,13 @@ export default function MatchesScreen() {
                     ? `Opens ${formatCountdown(timeUntilOpen)}`
                     : status === "open"
                     ? `Kicks off ${formatCountdown(timeUntilKickoff)}`
-                    : "Locked"}
+                    : status === "started"
+                    ? "Started"
+                    : status === "completed"
+                    ? "Completed"
+                    : status === "cancelled"
+                    ? "Cancelled"
+                    : "Teams are set"}
                 </Text>
               </View>
             </View>
@@ -727,7 +745,7 @@ export default function MatchesScreen() {
             <Text style={styles.emptyText}>
               {filter === "open"
                 ? "No open matches right now"
-                : "No upcoming matches"}
+                : "No matches yet"}
             </Text>
             {filter === "open" && (
               <TouchableOpacity
@@ -849,6 +867,7 @@ function StatusBadge({
     if (status === "open" && urgency === "critical") return theme.colors.error;
     if (status === "open") return theme.colors.success;
     if (status === "locked") return theme.colors.primary;
+    if (status === "started") return theme.colors.primaryLight;
     if (status === "cancelled") return theme.colors.error;
     return theme.colors.warning;
   };

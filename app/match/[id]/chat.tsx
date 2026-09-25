@@ -194,9 +194,9 @@ export default function ChatScreen() {
         </View>
         <View style={styles.centered}>
           <Ionicons name="lock-closed" size={40} color={theme.colors.textSecondary} />
-          <Text style={styles.deniedTitle}>Chat is for confirmed players</Text>
+          <Text style={styles.deniedTitle}>Chat is for group members</Text>
           <Text style={styles.deniedSubtitle}>
-            Join the match and get a confirmed spot to access chat.
+            Join the group to talk with other players about this match.
           </Text>
         </View>
       </View>

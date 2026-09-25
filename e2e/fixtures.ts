@@ -32,7 +32,10 @@ export const test = base.extend<{ backend: Backend }>({
       }
       if (path.endsWith('/rpc/initialize_profile')) return route.fulfill({json:null});
       if (path.endsWith('/rpc/get_match_capacity')) return route.fulfill({json:state.matches.map(m=>({match_id:m.id,confirmed_count:state.signups.filter(s=>s.match_id===m.id&&s.state==='confirmed').length,reserved_count:0}))});
-      if (path.endsWith('/rpc/can_access_chat')) return route.fulfill({json:false});
+      if (path.endsWith('/rpc/can_access_chat')) {
+        const match=state.matches.find(m=>m.id===body.m);
+        return route.fulfill({json:!!match && state.memberships.some(m=>m.club_id===match.club_id&&m.user_id===user.id&&m.status==='approved')});
+      }
       if (path.endsWith('/rpc/group_action')) {
         const {action,g,target,value,description}=body;
         let id=g;

@@ -286,8 +286,7 @@ export default function MatchDetailScreen() {
     match.status !== 'completed' &&
     match.status !== 'cancelled';
 
-  const isConfirmedPlayer = mySignup?.state === 'confirmed';
-  const canAccessChat = isConfirmedPlayer || canManageTeams;
+  const canAccessChat = !!role;
 
   const myStatusTitle =
     mySignup?.state === 'confirmed'
@@ -772,4 +771,3 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.m,
   },
 });
-
