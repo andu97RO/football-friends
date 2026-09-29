@@ -1,3 +1,4 @@
+import { useGroupStore } from '@/lib/groups';
 // Import polyfills first before any other imports
 import '@/lib/polyfills';
 import 'react-native-url-polyfill/auto';
@@ -5,8 +6,7 @@ import 'react-native-url-polyfill/auto';
 import { Stack } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { LogBox, Platform, StatusBar } from 'react-native';
-import Constants from 'expo-constants';
+import { LogBox, StatusBar } from 'react-native';
 import AlertHost from '@/components/AlertHost';
 import { theme } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
@@ -39,6 +39,14 @@ export default function RootLayout() {
 
     // Listen for auth changes globally
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (_event === 'PASSWORD_RECOVERY') useAuthStore.getState().setRecovery(true);
+      if (useAuthStore.getState().session?.user.id !== session?.user.id) {
+        void queryClient.cancelQueries();
+        queryClient.clear();
+        useGroupStore.getState().select(null);
+        void supabase.removeAllChannels();
+      }
+      if (!session) useAuthStore.getState().setRecovery(false);
       setSession(session);
     });
 

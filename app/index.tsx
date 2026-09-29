@@ -1,26 +1,10 @@
-import { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Redirect } from 'expo-router';
-import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/auth-store';
 import { isVerifiedSession } from '@/lib/auth-utils';
 
 export default function Index() {
-  const { session, setSession } = useAuthStore();
-
-  useEffect(() => {
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { session } = useAuthStore();
 
   // Show loading while checking session
   if (session === undefined) {

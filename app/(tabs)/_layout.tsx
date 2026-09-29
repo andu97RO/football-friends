@@ -1,3 +1,4 @@
+import { useGroups } from '@/lib/groups';
 import { Redirect, Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/lib/auth-store';
@@ -9,29 +10,20 @@ import { BlurView } from 'expo-blur';
 import { Match } from '@/lib/types';
 import { isSignupWindowOpen } from '@/lib/utils';
 import { isVerifiedSession } from '@/lib/auth-utils';
-import { ensureProfile } from '@/lib/ensure-profile';
 
 export default function TabsLayout() {
   const { session } = useAuthStore();
   const isAuthed = isVerifiedSession(session);
 
-  // Ensure profile exists as soon as tabs load (not only on Profile tab)
-  const { data: profile } = useQuery({
-    queryKey: ['profile', session?.user?.id],
-    queryFn: async () => {
-      if (!session?.user?.id) return null;
-      return ensureProfile(session.user.id, session.user.email);
-    },
-    enabled: isAuthed && !!session?.user?.id,
-  });
-
+  const { current, isAdmin } = useGroups();
   // Count open matches for badge (signup window still open)
   const { data: openMatchCount } = useQuery({
-    queryKey: ['open-match-count'],
+    queryKey: ['open-match-count', session?.user.id, current?.club_id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('match')
         .select('id, kick_off, signup_open_at, status')
+        .eq('club_id', current!.club_id)
         .gte('kick_off', new Date().toISOString())
         .in('status', ['scheduled']);
 
@@ -40,10 +32,11 @@ export default function TabsLayout() {
       const now = new Date();
       return data.filter(match => isSignupWindowOpen(match as Match, now)).length;
     },
+    enabled: isAuthed && !!current,
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  const isAdmin = profile?.is_admin === true;
+
 
   // `undefined` means the stored session is still being restored. Redirecting
   // in that window would bounce every hard refresh and deep link on web.
@@ -87,10 +80,11 @@ export default function TabsLayout() {
         ),
       }}
     >
+      <Tabs.Screen name="groups" options={{ title: "Groups", tabBarIcon: ({ color, size }) => <Ionicons name="people" color={color} size={size} /> }} />
       <Tabs.Screen
         name="matches"
         options={{
-          title: 'Matches',
+          title: current?.club.name ?? 'Matches',
           tabBarIcon: ({ color, size }) => (
             <View>
               <Ionicons name="football" size={size} color={color} />

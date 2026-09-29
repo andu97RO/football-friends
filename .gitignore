@@ -66,6 +66,13 @@ expo-env.d.ts
 #Playwright
 playwright-report/
 test-results/
+.playwright-cli/
 
 # Supabase temp files (may contain sensitive connection strings)
 supabase/.temp/
+
+# Private release inventory and backups
+.release-private/
+.vercel/
+output/
+.vercel

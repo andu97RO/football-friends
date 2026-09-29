@@ -42,9 +42,10 @@ export function formatMatchTimeShort(isoString: string): string {
 export function getMatchStatus(
   match: Match,
   now: Date
-): 'waiting' | 'open' | 'locked' | 'completed' | 'cancelled' {
+): 'waiting' | 'open' | 'locked' | 'started' | 'completed' | 'cancelled' {
   if (match.status === 'cancelled') return 'cancelled';
   if (match.status === 'completed') return 'completed';
+  if (now.getTime() >= new Date(match.kick_off).getTime()) return 'started';
   if (match.status === 'locked') return 'locked';
 
   const signupOpenTime = new Date(match.signup_open_at).getTime();

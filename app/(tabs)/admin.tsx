@@ -1,10 +1,10 @@
+import { useGroups, groupPlayers } from '@/lib/groups';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Platform,
   Modal,
   TextInput,
 } from "react-native";
@@ -35,7 +35,7 @@ function PlayerRatingRow({
   const renderStars = () => {
     return (
       <View style={styles.starsContainer}>
-        {[1, 2, 3, 4, 5].map((star) => (
+        {[0, 1, 2, 3, 4, 5].map((star) => (
           <TouchableOpacity
             key={star}
             onPress={() => onUpdateRating(star)}
@@ -118,37 +118,12 @@ export default function AdminScreen() {
   // Success Modal State
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  // Check if user is an admin
-  const { data: profile, isLoading: checkingAdmin } = useQuery({
-    queryKey: ["profile", session?.user?.id],
-    queryFn: async () => {
-      if (!session?.user?.id) return null;
-
-      const { data, error } = await supabase
-        .from("profile")
-        .select("*")
-        .eq("user_id", session.user.id)
-        .maybeSingle();
-
-      if (error || !data) return null;
-      return data as Profile;
-    },
-    enabled: !!session?.user?.id,
-  });
-
-  const isAdmin = profile?.is_admin === true;
-
+  const { current, isAdmin, isLoading: checkingAdmin } = useGroups();
   // Get all players for rating management
   const { data: allPlayers, isLoading: loadingPlayers } = useQuery({
-    queryKey: ["allPlayers"],
+    queryKey: ["allPlayers", current?.club_id, session?.user.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profile")
-        .select("*")
-        .order("display_name", { ascending: true });
-
-      if (error) throw error;
-      return data as Profile[];
+      return (await groupPlayers(current!.club_id)).filter((m) => m.status === 'approved');
     },
     enabled: isAdmin === true && activeTab === 'players',
   });
@@ -158,49 +133,14 @@ export default function AdminScreen() {
     player.display_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Get or create the default club
-  const { data: defaultClub } = useQuery({
-    queryKey: ["defaultClub"],
-    queryFn: async () => {
-      // Get the first club (the default one)
-      let { data: club, error } = await supabase
-        .from("club")
-        .select("id")
-        .limit(1)
-        .single();
-
-      // If no club exists, create one
-      if (error && error.code === "PGRST116") {
-        const { data: newClub, error: createError } = await supabase
-          .from("club")
-          .insert({
-            name: "Football Friends Club",
-            organizer_id: session?.user?.id,
-          })
-          .select()
-          .single();
-
-        if (createError) {
-          console.error("Failed to create default club:", createError);
-          return null;
-        }
-        return newClub;
-      }
-
-      return club;
-    },
-    enabled: isAdmin === true,
-  });
-
   const updateRatingMutation = useMutation({
     mutationFn: async ({ userId, newRating }: { userId: string; newRating: number }) => {
       if (!session?.user?.id) throw new Error("Not authenticated");
 
       // Updates rating_base and writes the audit log entry atomically
       // server-side (audit_log has no client-facing INSERT policy).
-      const { error } = await supabase.rpc("update_player_rating_atomic", {
-        p_user_id: userId,
-        p_new_rating: newRating,
+      const { error } = await supabase.rpc("group_action", {
+        action: "rating", g: current!.club_id, target: userId, value: String(newRating),
       });
 
       if (error) throw error;
@@ -218,13 +158,13 @@ export default function AdminScreen() {
   const createMatchMutation = useMutation({
     mutationFn: async () => {
       if (!session?.user?.id) throw new Error("Not authenticated");
-      if (!defaultClub?.id) throw new Error("No club available");
+      if (!current?.club_id) throw new Error("Select a group first");
 
       // Create match using the default club
       const { data, error } = await supabase
         .from("match")
         .insert({
-          club_id: defaultClub.id,
+          club_id: current.club_id,
           kick_off: kickOffDateTime.toISOString(),
           signup_open_at: signupOpenDateTime.toISOString(),
           spots: 18,
@@ -250,9 +190,6 @@ export default function AdminScreen() {
     },
   });
 
-  const formatDateTime = (date: dayjs.Dayjs) => {
-    return date.format("MMM D, YYYY h:mm A");
-  };
 
   if (checkingAdmin) {
     return (
@@ -316,7 +253,7 @@ export default function AdminScreen() {
               <View style={styles.header}>
                 <Text style={styles.title}>Create Match</Text>
                 <Text style={styles.subtitle}>
-                  Schedule a new match for your club
+                  Schedule a new match for your group
                 </Text>
               </View>
             </Animated.View>

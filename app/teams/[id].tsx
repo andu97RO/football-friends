@@ -1,5 +1,7 @@
+import { isVerifiedSession } from '@/lib/auth-utils';
+import { useGroupRole, groupPlayers } from '@/lib/groups';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, Redirect } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { showAlert } from '@/lib/alert';
 import { supabase } from '@/lib/supabase';
@@ -26,28 +28,21 @@ export default function TeamsScreen() {
   } | null>(null);
   const [showMoveModal, setShowMoveModal] = useState(false);
 
-  // Check if user is admin
-  const { data: profile } = useQuery({
-    queryKey: ['profile', session?.user?.id],
+  const { data: match } = useQuery({
+    queryKey: ['match', id, session?.user.id],
+    enabled: !!session?.user.id,
     queryFn: async () => {
-      if (!session?.user?.id) return null;
-
-      const { data, error } = await supabase
-        .from('profile')
-        .select('is_admin')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
-
-      if (error || !data) return null;
+      const { data, error } = await supabase.from('match').select('*').eq('id', id).single();
+      if (error) throw error;
       return data;
     },
-    enabled: !!session?.user?.id,
   });
-
-  const isAdmin = profile?.is_admin === true;
+  const { data: role } = useGroupRole(match?.club_id);
+  const isAdmin = role === 'owner' || role === 'admin';
 
   const { data: teams, isLoading } = useQuery({
-    queryKey: ['teams', id],
+    queryKey: ['teams', id, session?.user.id],
+    enabled: !!match,
     queryFn: async () => {
       // Get teams with assignments
       const { data: teamsData, error: teamsError } = await supabase
@@ -73,13 +68,7 @@ export default function TeamsScreen() {
       let profiles: { user_id: string; display_name: string; rating_base: number }[] = [];
 
       if (userIds.length > 0) {
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profile')
-          .select('user_id, display_name, rating_base')
-          .in('user_id', userIds);
-
-        if (profilesError) throw profilesError;
-        profiles = profilesData || [];
+        profiles = await groupPlayers(match!.club_id);
       }
 
       // Combine data
@@ -148,6 +137,9 @@ export default function TeamsScreen() {
     swapPlayerMutation.mutate({ toTeamId });
   };
 
+  if (session === null) return <Redirect href="/login" />;
+  if (session && !isVerifiedSession(session)) return <Redirect href="/login" />;
+
   if (isLoading) {
     return (
       <View style={styles.centered}>
@@ -210,7 +202,7 @@ export default function TeamsScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         {teams.map((team: any, index: number) => {
           const players = team.team_assignment || [];
-          const totalRating = players.reduce((sum: number, p: any) => sum + (p.profile?.rating_base || 3), 0);
+          const totalRating = players.reduce((sum: number, p: any) => sum + (p.profile?.rating_base ?? 3), 0);
           const avgRating = players.length > 0 ? (totalRating / players.length).toFixed(1) : '0';
 
           return (
@@ -256,7 +248,7 @@ export default function TeamsScreen() {
                           </View>
                           <View style={styles.playerRatingContainer}>
                             <Text style={styles.playerRating}>
-                              {assignment.profile?.rating_base || 3}
+                              {assignment.profile?.rating_base ?? 3}
                             </Text>
                             {editMode && (
                               <Ionicons
