@@ -1,18 +1,16 @@
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
-import { showAlert } from '@/lib/alert';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { theme } from '@/constants/theme';
+import { callFunction } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/auth-store';
-import { useState, useEffect, useRef } from 'react';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { theme } from '@/constants/theme';
-import { Ionicons } from '@expo/vector-icons';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-
-dayjs.extend(relativeTime);
+import { formatDate, useLocaleStore, useT } from '@/lib/i18n';
+import { showToast } from '@/lib/toast';
+import { EmptyState, ErrorState, LoadingState, Screen, ScreenHeader, Txt } from '@/components/ui';
 
 interface ChatMessage {
   id: string;
@@ -20,378 +18,208 @@ interface ChatMessage {
   user_id: string;
   content: string;
   created_at: string;
-  profile?: {
-    display_name: string;
-  };
+  profile?: { display_name: string } | null;
+  pending?: boolean;
+}
+
+type Item = { kind: 'day'; key: string; label: string } | { kind: 'message'; key: string; message: ChatMessage; showName: boolean };
+
+function dayKey(iso: string): string {
+  return new Date(iso).toDateString();
 }
 
 export default function ChatScreen() {
-  const { id } = useLocalSearchParams();
-  const router = useRouter();
-  const { session } = useAuthStore();
-  const queryClient = useQueryClient();
-  const [newMessage, setNewMessage] = useState('');
-  const flatListRef = useRef<FlatList>(null);
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const t = useT();
+  const locale = useLocaleStore((s) => s.locale);
+  const insets = useSafeAreaInsets();
+  const session = useAuthStore((s) => s.session);
+  const myId = session?.user.id;
+  const client = useQueryClient();
+  const [draft, setDraft] = useState('');
+  const listRef = useRef<FlatList<Item>>(null);
+  const key = ['chat', id, myId];
 
-  const { data: access, isLoading: accessLoading } = useQuery({
-    queryKey: ['chat-access', id, session?.user?.id],
+  const header = useQuery({
+    queryKey: ['chat-header', id, myId],
     queryFn: async () => {
-      if (!session?.user?.id || !id) return { allowed: false };
-
-      const { data, error } = await supabase.rpc('can_access_chat', { m: id });
+      const [{ data: allowed, error }, { data: match }, { count }] = await Promise.all([
+        supabase.rpc('can_access_chat', { m: id }),
+        supabase.from('match').select('kick_off').eq('id', id).maybeSingle(),
+        supabase.from('signup').select('id', { count: 'exact', head: true }).eq('match_id', id).eq('state', 'confirmed'),
+      ]);
       if (error) throw error;
-      return { allowed: data === true };
+      return { allowed: allowed === true, kickOff: match?.kick_off as string | undefined, players: count ?? 0 };
     },
-    enabled: !!session?.user?.id && !!id,
   });
 
-  // Fetch messages
-  const { data: messages, isLoading } = useQuery({
-    queryKey: ['chat', id, session?.user.id],
+  const messages = useQuery({
+    queryKey: key,
+    enabled: header.data?.allowed === true,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('chat_message')
-        .select('*, profile(display_name)')
-        .eq('match_id', id)
-        .order('created_at', { ascending: true });
-
+      const { data, error } = await supabase.from('chat_message').select('*, profile(display_name)').eq('match_id', id).order('created_at');
       if (error) throw error;
       return data as ChatMessage[];
     },
-    enabled: access?.allowed === true,
   });
 
-  // Realtime subscription
   useEffect(() => {
-    if (!access?.allowed) return;
-
+    if (!header.data?.allowed) return;
     const channel = supabase
-      .channel(`chat:${id}:${session?.user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_message',
-          filter: `match_id=eq.${id}`,
-        },
-        async (payload) => {
-          const { data: profile } = await supabase
-            .from('profile')
-            .select('display_name')
-            .eq('user_id', payload.new.user_id)
-            .single();
-
-          const newMsg = { ...payload.new, profile } as ChatMessage;
-
-          queryClient.setQueryData(['chat', id, session?.user.id], (old: ChatMessage[] = []) => {
-             if (old.find(m => m.id === newMsg.id)) return old;
-
-             const filteredOld = old.filter(m => {
-               if (!m.id.startsWith('temp-')) return true;
-               if (m.user_id !== newMsg.user_id) return true;
-               if (m.content !== newMsg.content) return true;
-               return false;
-             });
-
-             return [...filteredOld, newMsg];
-          });
-
-          setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-        }
-      )
+      .channel(`chat:${id}:${myId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_message', filter: `match_id=eq.${id}` }, async (payload) => {
+        const { data: profile } = await supabase.from('profile').select('display_name').eq('user_id', payload.new.user_id).maybeSingle();
+        const incoming = { ...payload.new, profile } as ChatMessage;
+        client.setQueryData<ChatMessage[]>(key, (old = []) => {
+          if (old.some((m) => m.id === incoming.id)) return old;
+          const withoutEcho = old.filter((m) => !(m.pending && m.user_id === incoming.user_id && m.content === incoming.content));
+          return [...withoutEcho, incoming];
+        });
+      })
       .subscribe();
-
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
-  }, [id, queryClient, access?.allowed, session?.user.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, myId, header.data?.allowed, client]);
 
-  const sendMessageMutation = useMutation({
+  const send = useMutation({
     mutationFn: async (content: string) => {
-      if (!content.trim()) return;
-      
-      const { error } = await supabase.from('chat_message').insert({
-        match_id: id as string,
-        user_id: session!.user!.id,
-        content: content.trim(),
-      });
-
+      const { error } = await supabase.from('chat_message').insert({ match_id: id, user_id: myId, content });
       if (error) throw error;
+      // Chat pushes respect each player's "Chat" notification setting.
+      callFunction('notify-chat', { matchId: id, content }).catch(() => undefined);
     },
     onMutate: async (content) => {
-      await queryClient.cancelQueries({ queryKey: ['chat', id, session?.user.id] });
-      const previousMessages = queryClient.getQueryData(['chat', id, session?.user.id]);
-
-      const optimisticMessage: ChatMessage = {
-        id: 'temp-' + Date.now(),
-        match_id: id as string,
-        user_id: session!.user!.id,
-        content: content.trim(),
-        created_at: new Date().toISOString(),
-        profile: {
-          display_name: 'You',
-        },
-      };
-
-      queryClient.setQueryData(['chat', id, session?.user.id], (old: ChatMessage[] = []) => [...old, optimisticMessage]);
-      setNewMessage('');
-      
-      return { previousMessages };
+      await client.cancelQueries({ queryKey: key });
+      const previous = client.getQueryData<ChatMessage[]>(key);
+      client.setQueryData<ChatMessage[]>(key, (old = []) => [
+        ...old,
+        { id: `temp-${Date.now()}`, match_id: id, user_id: myId!, content, created_at: new Date().toISOString(), pending: true },
+      ]);
+      setDraft('');
+      return { previous, content };
     },
-    onError: (_err, _newTodo, context) => {
-      queryClient.setQueryData(['chat', id, session?.user.id], context?.previousMessages);
-      showAlert('Error', 'Failed to send message');
+    onError: (_error, _content, context) => {
+      client.setQueryData(key, context?.previous);
+      setDraft(context?.content ?? '');
+      showToast(t('chat.sendFailed'), { tone: 'error' });
     },
   });
 
-  const handleSend = () => {
-    if (!newMessage.trim()) return;
-    sendMessageMutation.mutate(newMessage);
-  };
+  const title = <ScreenHeader back title={t('match.chat')} titleVariant="title" subtitle={header.data?.kickOff ? t('chat.subtitle', { when: formatDate.day(header.data.kickOff, locale), count: header.data.players }) : undefined} />;
 
-  const renderItem = ({ item }: { item: ChatMessage }) => {
-    const isMe = item.user_id === session?.user?.id;
-
-    return (
-      <View style={[styles.messageContainer, isMe ? styles.myMessageContainer : styles.theirMessageContainer]}>
-        <Text style={[styles.senderName, isMe && styles.mySenderName]}>
-          {isMe ? 'You' : (item.profile?.display_name || 'Unknown')}
-        </Text>
-        <View style={[styles.bubble, isMe ? styles.myBubble : styles.theirBubble]}>
-          <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
-            {item.content}
-          </Text>
-          <Text style={[styles.timeText, isMe ? styles.myTimeText : styles.theirTimeText]}>
-            {dayjs(item.created_at).format('h:mm A')}
-          </Text>
-        </View>
-      </View>
-    );
-  };
-
-  if (accessLoading) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator color={theme.colors.primary} />
-      </View>
-    );
+  if (header.isLoading) return <Screen header={title}><LoadingState /></Screen>;
+  if (header.error) return <Screen header={title}><ErrorState error={header.error} onRetry={() => header.refetch()} /></Screen>;
+  if (!header.data?.allowed) {
+    return <Screen header={title}><EmptyState icon="lock-closed-outline" title={t('chat.membersOnly')} body={t('chat.membersOnlyBody')} /></Screen>;
   }
 
-  if (!access?.allowed) {
-    return (
-      <View style={styles.container}>
-        <LinearGradient
-          colors={[theme.colors.background, '#1e1b4b']}
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Match Chat</Text>
-          <View style={{ width: 24 }} />
-        </View>
-        <View style={styles.centered}>
-          <Ionicons name="lock-closed" size={40} color={theme.colors.textSecondary} />
-          <Text style={styles.deniedTitle}>Chat is for group members</Text>
-          <Text style={styles.deniedSubtitle}>
-            Join the group to talk with other players about this match.
-          </Text>
-        </View>
-      </View>
-    );
+  // Day separators; the sender's name only at the start of their run (T6).
+  const items: Item[] = [];
+  let lastDay = '';
+  let lastSender = '';
+  const today = dayKey(new Date().toISOString());
+  const yesterday = dayKey(new Date(Date.now() - 86400000).toISOString());
+  for (const message of messages.data ?? []) {
+    const day = dayKey(message.created_at);
+    if (day !== lastDay) {
+      items.push({ kind: 'day', key: `day-${day}`, label: day === today ? t('chat.today') : day === yesterday ? t('chat.yesterday') : formatDate.day(message.created_at, locale) });
+      lastDay = day;
+      lastSender = '';
+    }
+    items.push({ kind: 'message', key: message.id, message, showName: message.user_id !== myId && message.user_id !== lastSender });
+    lastSender = message.user_id;
   }
+
+  const submit = () => {
+    const content = draft.trim();
+    if (content) send.mutate(content);
+  };
 
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={[theme.colors.background, '#1e1b4b']}
-        style={StyleSheet.absoluteFill}
-      />
-      
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Match Chat</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        ListEmptyComponent={
-          !isLoading ? (
-            <Text style={styles.emptyText}>No messages yet. Say hi!</Text>
-          ) : null
-        }
-      />
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <BlurView intensity={20} tint="dark" style={styles.inputContainer}>
+    <Screen header={title} scroll={false} testID="chat-screen">
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.top + 60}>
+        {messages.isLoading ? (
+          <LoadingState />
+        ) : items.length === 0 ? (
+          <EmptyState icon="chatbubbles-outline" title={t('chat.emptyTitle')} body={t('chat.emptyBody')} />
+        ) : (
+          <FlatList
+            ref={listRef}
+            data={items}
+            keyExtractor={(item) => item.key}
+            contentContainerStyle={styles.list}
+            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
+            renderItem={({ item }) =>
+              item.kind === 'day' ? (
+                <Txt variant="label" tone="muted" style={styles.day}>{item.label}</Txt>
+              ) : (
+                <Bubble message={item.message} mine={item.message.user_id === myId} showName={item.showName} locale={locale} />
+              )
+            }
+          />
+        )}
+        <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           <TextInput
             style={styles.input}
-            placeholder="Type a message..."
-            placeholderTextColor={theme.colors.textSecondary}
-            value={newMessage}
-            onChangeText={setNewMessage}
+            placeholder={t('chat.placeholder')}
+            placeholderTextColor={theme.colors.textMuted}
+            value={draft}
+            onChangeText={setDraft}
             multiline
+            maxLength={4000}
+            accessibilityLabel={t('chat.placeholder')}
+            testID="chat-input"
           />
-          <TouchableOpacity 
-            style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]} 
-            onPress={handleSend}
-            disabled={!newMessage.trim()}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('chat.send')}
+            onPress={submit}
+            disabled={!draft.trim()}
+            style={[styles.send, !draft.trim() && { opacity: 0.4 }]}
+            testID="chat-send"
           >
-            <Ionicons name="send" size={20} color="white" />
-          </TouchableOpacity>
-        </BlurView>
+            <Ionicons name="send" size={18} color={theme.colors.onPrimary} />
+          </Pressable>
+        </View>
       </KeyboardAvoidingView>
+    </Screen>
+  );
+}
+
+/** Alignment says who sent it; my bubbles use a tint, not the primary-button lime. */
+function Bubble({ message, mine, showName, locale }: { message: ChatMessage; mine: boolean; showName: boolean; locale: 'en' | 'ro' }) {
+  return (
+    <View style={[styles.row, mine ? styles.rowMine : styles.rowTheirs]}>
+      {showName && <Txt variant="caption" tone="secondary" style={styles.name}>{message.profile?.display_name ?? '?'}</Txt>}
+      <View style={[styles.bubble, mine ? styles.mine : styles.theirs, message.pending && { opacity: 0.6 }]}>
+        <Txt variant="body">{message.content}</Txt>
+        <Txt variant="caption" tone="muted" style={styles.time}>{formatDate.time(message.created_at, locale)}</Txt>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.xl,
-  },
-  deniedTitle: {
-    color: theme.colors.text,
-    fontSize: 18,
-    fontWeight: '700',
-    marginTop: theme.spacing.m,
-    textAlign: 'center',
-  },
-  deniedSubtitle: {
-    color: theme.colors.textSecondary,
-    fontSize: 14,
-    marginTop: theme.spacing.s,
-    textAlign: 'center',
-  },
-  emptyText: {
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    marginTop: theme.spacing.xl,
-    fontStyle: 'italic',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.l,
-    paddingTop: 60,
-    paddingBottom: theme.spacing.m,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-  },
-  listContent: {
-    padding: theme.spacing.m,
-    paddingBottom: 20,
-  },
-  messageContainer: {
-    marginBottom: theme.spacing.m,
-    maxWidth: '80%',
-  },
-  myMessageContainer: {
-    alignSelf: 'flex-end',
-  },
-  theirMessageContainer: {
-    alignSelf: 'flex-start',
-  },
-  senderName: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: theme.colors.primaryLight,
-    marginBottom: 4,
-  },
-  mySenderName: {
-    color: theme.colors.text,
-    textAlign: 'right',
-  },
-  bubble: {
-    padding: 12,
-    borderRadius: 16,
-    maxWidth: '100%',
-  },
-  myBubble: {
-    backgroundColor: theme.colors.primary,
-    borderBottomRightRadius: 4,
-  },
-  theirBubble: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderBottomLeftRadius: 4,
-  },
-  messageText: {
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  myMessageText: {
-    color: 'white',
-  },
-  theirMessageText: {
-    color: theme.colors.text,
-  },
-  timeText: {
-    fontSize: 10,
-    marginTop: 4,
-    alignSelf: 'flex-end',
-  },
-  myTimeText: {
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  theirTimeText: {
-    color: theme.colors.textSecondary,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: theme.spacing.m,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  list: { paddingHorizontal: theme.spacing.m + 4, paddingVertical: theme.spacing.m, gap: 6 },
+  day: { alignSelf: 'center', marginVertical: 10 },
+  row: { maxWidth: '82%', gap: 3 },
+  rowMine: { alignSelf: 'flex-end' },
+  rowTheirs: { alignSelf: 'flex-start' },
+  name: { marginLeft: 4, fontFamily: theme.fonts.bold },
+  bubble: { paddingHorizontal: 14, paddingTop: 9, paddingBottom: 6, borderRadius: 18, borderWidth: 1 },
+  mine: { backgroundColor: theme.colors.primaryTint, borderColor: 'rgba(200, 240, 74, 0.35)', borderBottomRightRadius: 6 },
+  theirs: { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border, borderBottomLeftRadius: 6 },
+  time: { fontSize: 11, alignSelf: 'flex-end', marginTop: 2 },
+  composer: {
+    flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: theme.spacing.m, paddingTop: 10,
+    borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.background,
   },
   input: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    color: theme.colors.text,
-    fontSize: 16,
-    maxHeight: 100,
-    marginRight: theme.spacing.m,
+    flex: 1, minHeight: 48, maxHeight: 120, paddingHorizontal: 16, paddingTop: 13, paddingBottom: 13, borderRadius: 24,
+    backgroundColor: theme.colors.surfaceRaised, borderWidth: 1, borderColor: theme.colors.border,
+    color: theme.colors.text, fontFamily: theme.fonts.body, fontSize: 16,
   },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: theme.colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendButtonDisabled: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
+  send: { width: 48, height: 48, borderRadius: 24, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center' },
 });

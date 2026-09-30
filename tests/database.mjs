@@ -36,7 +36,10 @@ const eq = (a,b) => { assert.deepEqual(a,b);checks++; };
 const group = async (action,g=null,target=null,value=null) => scalar('select public.group_action($1,$2,$3,$4)',[action,g,target,value]);
 const match = async (action,m,player=null,source=null,dest=null) => scalar('select public.match_action($1,$2,$3,$4,$5)',[action,m,player,source,dest]);
 await as(ids[0]); const g1=await group('create',null,null,'First group');
-eq(await scalar('select rating from group_membership where club_id=$1',[g1]),0);
+eq(await scalar('select listed from club where id=$1',[g1]),false);
+await as(ids[1]); await deny("select group_action('request',$1)",[g1]);
+await as(ids[0]); await group('listed',g1,null,'true');
+eq(await scalar('select rating from my_groups() where club_id=$1',[g1]),0);
 await deny('update profile set rating_base=5 where user_id=$1',[ids[0]]);
 await deny('update profile set is_admin=true where user_id=$1',[ids[0]]);
 await deny('select push_token from profile');
@@ -48,7 +51,7 @@ eq(await scalar('select status from group_membership where club_id=$1 and user_i
 await deny('select group_action(\'review\',$1,$2,\'approved\')',[g1,ids[1]]);
 await as(ids[0]); await group('review',g1,ids[1],'approved'); await group('rating',g1,ids[1],'5');
 await as(ids[1]);
-eq(await scalar('select rating from group_membership where club_id=$1',[g2]),1);
+eq(await scalar('select rating from my_groups() where club_id=$1',[g2]),1);
 await deny('select group_action(\'rating\',$1,$2,\'4\')',[g1,ids[1]]);
 await as(ids[0]); await group('role',g1,ids[1],'admin');
 await as(ids[1]); await group('rating',g1,ids[0],'0');
@@ -65,9 +68,9 @@ await as(ids[1]); const m2=await createMatch(g2);
 await as(ids[3]);
 eq(await scalar('select count(*)::int from match'),0);
 await deny('select match_action(\'join\',$1)',[m1]);
-await as(ids[4]); eq(await scalar('select count(*)::int from match'),0); eq(await scalar('select count(*)::int from club'),2); await deny('select group_action(\'create\',null,null,\'Unverified\')');
+await as(ids[4]); eq(await scalar('select count(*)::int from match'),0); eq(await scalar('select count(*)::int from club'),1); await deny('select group_action(\'create\',null,null,\'Unverified\')');
 await as(null); await deny('select * from match'); await deny('truncate table public.profile');
-eq(await scalar('select count(*)::int from club'),2);
+await deny('select name from club');
 await deny('select organizer_id from club');
 await as(ids[0]); eq(await scalar('select count(*)::int from match'),3); await deny('select match_action(\'generate\',$1)',[m2]);
 await deny('select match_action(\'generate\',$1)',[empty]);
@@ -121,6 +124,105 @@ await db.query("insert into storage.objects(bucket_id,name) values('avatars',$1)
 await admin();await db.query(`update auth.users set raw_user_meta_data='{"initial_rating":5}' where id=$1`,[ids[0]]);
 await as(ids[0]);await db.query('select initialize_profile()');
 await admin();eq(await scalar('select rating_base from profile where user_id=$1',[ids[0]]),0);
+// Redesign: private ratings, invites, swaps, results, votes, stats, weekly repeat, onboarding, account deletion.
+await as(ids[2]);
+await deny('select rating from group_membership');
+eq(await scalar('select count(*)::int from group_members($1)',[g1]),3);
+eq(await scalar('select count(*)::int from group_members($1) where rating is not null',[g1]),1);
+eq(await scalar('select count(*)::int from team_summary($1)',[m1]),2);
+await deny('select group_invite($1)',[g1]);
+await as(ids[0]);
+eq(await scalar('select count(*)::int from group_members($1) where rating is not null',[g1]),4);
+eq(await scalar('select pending_requests from my_groups() where club_id=$1',[g1]),1);
+const code=await scalar('select group_invite($1)',[g1]);
+await as(ids[3]);
+eq(await scalar('select my_status from group_by_code($1)',[code.toLowerCase()]),'pending');
+await group('join_code',null,null,code);
+eq(await scalar('select status from my_groups() where club_id=$1',[g1]),'approved');
+await as(ids[1]); await deny("select group_action('remove',$1,$2)",[g1,ids[3]]);
+await as(ids[0]); await group('remove',g1,ids[3]);
+eq(await scalar('select count(*)::int from group_members($1) where user_id=$2',[g1,ids[3]]),0);
+// Swaps keep both teams the same size.
+{
+  const teamOf = async u => scalar('select ta.team_id from team_assignment ta join team t on t.id=ta.team_id where t.match_id=$1 and ta.user_id=$2',[m1,u]);
+  let t0=await teamOf(ids[0]); const t2=await teamOf(ids[2]);
+  if (t0===t2) { const other=teams.find(t=>t.id!==t0).id; await match('move',m1,ids[0],t0,other); t0=other; }
+  await as(ids[2]); await deny('select swap_players($1,$2,$3)',[m1,ids[0],ids[2]]);
+  await as(ids[0]); await db.query('select swap_players($1,$2,$3)',[m1,ids[0],ids[2]]);
+  eq(await teamOf(ids[0]),t2); eq(await teamOf(ids[2]),t0);
+  await deny('select swap_players($1,$2,$3)',[m1,ids[0],ids[0]]);
+  await db.query('select set_paid($1,$2,true)',[m1,ids[2]]);
+  eq(await scalar('select paid from signup where match_id=$1 and user_id=$2',[m1,ids[2]]),true);
+  await as(ids[2]); await deny('select set_paid($1,$2,false)',[m1,ids[2]]);
+  // Results: my team (t2) wins 3-1; ids[2] first marked absent, then corrected.
+  const scores=JSON.stringify({[t2]:3,[t0]:1});
+  await deny('select record_result($1,$2,$3)',[m1,scores,[]]);
+  await as(ids[0]); await db.query('select record_result($1,$2,$3)',[m1,scores,[ids[2]]]);
+  eq(await scalar('select status from match where id=$1',[m1]),'completed');
+  eq(await scalar('select attended from signup where match_id=$1 and user_id=$2',[m1,ids[2]]),false);
+  await deny('select vote_motm($1,$2)',[m1,ids[2]]);
+  await db.query('select record_result($1,$2,$3)',[m1,scores,[]]);
+  await deny('select vote_motm($1,$2)',[m1,ids[0]]);
+  await db.query('select vote_motm($1,$2)',[m1,ids[2]]);
+  await as(ids[2]); await db.query('select vote_motm($1,$2)',[m1,ids[0]]);
+  eq(await scalar('select count(*)::int from motm_vote'),1);
+  eq((await scalar('select match_summary($1)',[m1])).motm.length,2);
+  await as(ids[0]);
+  eq(await scalar('select player_stats($1)',[g1]),{games:1,wins:1,showed_up:100,form:['W'],motm:1});
+}
+// A weekly match rolls to next week once it has kicked off.
+{
+  const weekly=await scalar("insert into match(club_id,kick_off,signup_open_at,repeat_weekly) values($1,now()-interval '2 hours',now()-interval '1 day',true) returning id",[g1]);
+  const before=await scalar('select count(*)::int from match');
+  await db.query('select * from match_feed()');
+  eq(await scalar('select count(*)::int from match'),before+1);
+  eq(await scalar('select next_match_id is not null and not repeat_weekly from match where id=$1',[weekly]),true);
+  eq(await scalar('select count(*)::int from match where repeat_weekly and kick_off>now()'),1);
+  await db.query('select * from match_feed()');
+  eq(await scalar('select count(*)::int from match'),before+1);
+}
+// Re-generating before kick-off redraws the teams.
+{
+  const m3=await createMatch(g1);
+  await match('join',m3); await as(ids[2]); await match('join',m3);
+  await deny("select match_action('regenerate',$1)",[m3]);
+  await as(ids[0]); await match('generate',m3); await match('regenerate',m3);
+  eq(await scalar('select count(*)::int from team_assignment ta join team t on t.id=ta.team_id where t.match_id=$1',[m3]),2);
+  eq(await scalar('select status from match where id=$1',[m3]),'locked');
+}
+// Teams are drawn automatically at T-60 when anyone loads the matches.
+{
+  const soon=await scalar("insert into match(club_id,kick_off,signup_open_at,spots,teams_count) values($1,now()+interval '2 hours',now()-interval '1 day',4,2) returning id",[g1]);
+  await match('join',soon);
+  await admin(); await db.query("update match set kick_off=now()+interval '30 minutes' where id=$1",[soon]);
+  await as(ids[2]); await db.query('select sync_matches()');
+  eq(await scalar('select status from match where id=$1',[soon]),'locked');
+  eq(await scalar('select count(*)::int from team where match_id=$1',[soon]),2);
+  await as(ids[0]);
+}
+// Magic-link and OAuth players pick a name once; sign-up form players are already onboarded.
+{
+  const fresh='00000000-0000-4000-8000-000000000099', named='00000000-0000-4000-8000-000000000098';
+  await admin();
+  await db.query(`insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data) values($1,'fresh@example.test',now(),'{}'),($2,'named@example.test',now(),'{"display_name":"Named","initial_rating":2}')`,[fresh,named]);
+  eq(await scalar('select onboarded from profile where user_id=$1',[fresh]),false);
+  eq(await scalar('select display_name||onboarded from profile where user_id=$1',[named]),'Namedtrue');
+  await as(fresh); await db.query('select complete_onboarding($1,$2)',['Nick',4]);
+  await db.query('select complete_onboarding($1,$2)',['Other',1]);
+  await admin(); eq(await scalar('select display_name||rating_base from profile where user_id=$1',[fresh]),'Nick4');
+}
+// Deleting an account hands groups on, removes empty groups and frees the auth row.
+{
+  await as(ids[1]); await db.query('select delete_account_data()');
+  await admin();
+  eq(await scalar('select count(*)::int from club where id=$1',[g2]),0);
+  eq(await scalar('select count(*)::int from group_membership where user_id=$1',[ids[1]]),0);
+  await db.query('delete from auth.users where id=$1',[ids[1]]); checks++;
+  await as(ids[2]); await db.query('select delete_account_data()');
+  await admin(); await db.query('delete from auth.users where id=$1',[ids[2]]); checks++;
+  await as(ids[0]); await db.query('select delete_account_data()');
+  await admin(); eq(await scalar('select count(*)::int from club where id=$1',[g1]),0);
+}
 await as(ids[0]);await db.query('delete from match where id=$1',[m1]);
 eq(await scalar('select count(*)::int from team where match_id=$1',[m1]),0);
 console.log(`Database isolation, roles, ratings, chat, waitlist, storage and atomic rollback: ${checks} checks passed`);

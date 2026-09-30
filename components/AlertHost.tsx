@@ -1,28 +1,30 @@
 import { useEffect, useState } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/constants/theme';
-import {
-  AppAlertButton,
-  AppAlertRequest,
-  dismissCurrentAlert,
-  subscribeToAlerts,
-} from '@/lib/alert';
+import { AppAlertButton, AppAlertRequest, dismissCurrentAlert, subscribeToAlerts } from '@/lib/alert';
+import { Button, Txt } from '@/components/ui';
 
 function testIdFor(button: AppAlertButton, index: number): string {
   const label = button.text?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
   return `alert-button-${label || index}`;
 }
 
-function buttonColor(style: AppAlertButton['style']): string {
-  if (style === 'destructive') return theme.colors.error;
-  if (style === 'cancel') return theme.colors.textSecondary;
-  return theme.colors.success;
+const icons = {
+  warning: { name: 'alert-circle-outline', color: theme.colors.warning, bg: theme.colors.warningTint },
+  danger: { name: 'alert-circle-outline', color: theme.colors.error, bg: theme.colors.errorTint },
+  success: { name: 'checkmark', color: theme.colors.onPrimary, bg: theme.colors.primary },
+  info: { name: 'information-circle-outline', color: theme.colors.info, bg: theme.colors.surfaceRaised },
+} as const;
+
+function variantFor(button: AppAlertButton, index: number, count: number) {
+  if (button.style === 'destructive') return 'danger' as const;
+  if (button.style === 'primary') return 'primary' as const;
+  if (button.style === 'cancel') return 'secondary' as const;
+  return count === 1 || index === count - 1 ? ('primary' as const) : ('secondary' as const);
 }
 
-/**
- * Renders alert requests coming from `showAlert` on web, where the native
- * `Alert.alert` dialog does not exist. Mounted once in the root layout.
- */
+/** Renders every `showAlert` / `confirm` request as an in-app dialog. */
 export default function AlertHost() {
   const [request, setRequest] = useState<AppAlertRequest | null>(null);
 
@@ -30,8 +32,8 @@ export default function AlertHost() {
 
   if (!request) return null;
 
-  const { title, message, buttons } = request;
-  const stacked = buttons.length > 2;
+  const { title, message, buttons, icon } = request;
+  const iconSpec = icon ? icons[icon] : null;
 
   const handlePress = (button: AppAlertButton) => {
     dismissCurrentAlert();
@@ -39,44 +41,25 @@ export default function AlertHost() {
   };
 
   return (
-    <Modal
-      animationType="fade"
-      transparent
-      visible
-      onRequestClose={dismissCurrentAlert}
-    >
+    <Modal animationType="fade" transparent visible onRequestClose={dismissCurrentAlert} statusBarTranslucent>
       <View style={styles.overlay}>
-        <View
-          style={styles.dialog}
-          testID="alert-dialog"
-          accessibilityRole="alert"
-          accessibilityViewIsModal
-        >
-          <Text style={styles.title} testID="alert-title">
-            {title}
-          </Text>
-          {message ? (
-            <Text style={styles.message} testID="alert-message">
-              {message}
-            </Text>
-          ) : null}
-
-          <View style={[styles.actions, stacked && styles.actionsStacked]}>
+        <View style={styles.dialog} testID="alert-dialog" accessibilityRole="alert" accessibilityViewIsModal>
+          {iconSpec && (
+            <View style={[styles.icon, { backgroundColor: iconSpec.bg }]}>
+              <Ionicons name={iconSpec.name} size={24} color={iconSpec.color} />
+            </View>
+          )}
+          <Txt variant="title" testID="alert-title">{title}</Txt>
+          {message ? <Txt variant="body" tone="secondary" testID="alert-message">{message}</Txt> : null}
+          <View style={styles.actions}>
             {buttons.map((button, index) => (
-              <TouchableOpacity
+              <Button
                 key={testIdFor(button, index)}
                 testID={testIdFor(button, index)}
-                accessibilityRole="button"
-                style={[styles.button, stacked && styles.buttonStacked]}
+                title={button.text || 'OK'}
+                variant={variantFor(button, index, buttons.length)}
                 onPress={() => handlePress(button)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[styles.buttonText, { color: buttonColor(button.style) }]}
-                >
-                  {button.text || 'OK'}
-                </Text>
-              </TouchableOpacity>
+              />
             ))}
           </View>
         </View>
@@ -86,58 +69,17 @@ export default function AlertHost() {
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.overlay,
-    padding: theme.spacing.l,
-  },
+  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.overlay, padding: theme.spacing.l },
   dialog: {
     width: '100%',
     maxWidth: 400,
+    gap: theme.spacing.s + 4,
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.l,
+    borderRadius: theme.borderRadius.xl,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: theme.colors.border,
     padding: theme.spacing.l,
-    ...theme.shadows.large,
   },
-  title: {
-    ...theme.typography.h3,
-    fontWeight: '600',
-    color: theme.colors.text,
-    textAlign: 'center',
-  },
-  message: {
-    ...theme.typography.body,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    marginTop: theme.spacing.s,
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: theme.spacing.l,
-    gap: theme.spacing.s,
-  },
-  actionsStacked: {
-    flexDirection: 'column',
-  },
-  button: {
-    flex: 1,
-    paddingVertical: theme.spacing.m,
-    paddingHorizontal: theme.spacing.m,
-    borderRadius: theme.borderRadius.m,
-    backgroundColor: theme.colors.surfaceLight,
-    alignItems: 'center',
-  },
-  buttonStacked: {
-    flex: 0,
-    width: '100%',
-  },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  icon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  actions: { gap: theme.spacing.s, marginTop: theme.spacing.s },
 });
