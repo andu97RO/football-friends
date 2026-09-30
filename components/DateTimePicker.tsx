@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, Platform, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import RNDateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
-import dayjs from 'dayjs';
 import { theme } from '@/constants/theme';
+import { formatDate, intlLocale, useLocaleStore, useT } from '@/lib/i18n';
+import { Txt } from '@/components/ui';
 
-// Web-only imports
 let ReactDatePicker: any;
 if (Platform.OS === 'web') {
   ReactDatePicker = require('react-datepicker').default;
@@ -14,347 +14,176 @@ if (Platform.OS === 'web') {
   require('react-datepicker/dist/react-datepicker.css');
 }
 
-interface DateTimePickerProps {
-  label?: string;
-  value: Date;
-  mode?: 'date' | 'time' | 'datetime';
-  onChange: (date: Date) => void;
-  minimumDate?: Date;
-}
+type Part = 'date' | 'time';
 
-export default function DateTimePicker({
+/**
+ * D2: one date + time row used by New match and Edit match alike.
+ * The date is on the left, the time on the right; each half opens its own picker.
+ */
+export default function DateTimeRow({
   label,
   value,
-  mode = 'datetime',
   onChange,
   minimumDate,
-}: DateTimePickerProps) {
-  const [show, setShow] = useState(false);
-  const [androidStep, setAndroidStep] = useState<'date' | 'time'>('date');
-  const pendingAndroidDate = useRef<Date | null>(null);
+  icon = 'calendar-outline',
+  testID,
+}: {
+  label: string;
+  value: Date;
+  onChange: (date: Date) => void;
+  minimumDate?: Date;
+  icon?: keyof typeof Ionicons.glyphMap;
+  testID?: string;
+}) {
+  const t = useT();
+  const locale = useLocaleStore((s) => s.locale);
+  const [open, setOpen] = useState<Part | null>(null);
 
   useEffect(() => {
-    if (Platform.OS === 'web') {
-      if (!document.getElementById('datepicker-portal')) {
-        const portalDiv = document.createElement('div');
-        portalDiv.id = 'datepicker-portal';
-        document.body.appendChild(portalDiv);
-      }
+    if (Platform.OS === 'web' && !document.getElementById('datepicker-portal')) {
+      const portalDiv = document.createElement('div');
+      portalDiv.id = 'datepicker-portal';
+      document.body.appendChild(portalDiv);
     }
   }, []);
 
-  const handleChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
-    // Android: Picker shows as dialog, closes on selection/dismissal
-    if (Platform.OS === 'android') {
-      if (event.type !== 'set' || !selectedDate) {
-        setShow(false);
-        pendingAndroidDate.current = null;
-        return;
-      }
-
-      if (mode === 'datetime' && androidStep === 'date') {
-        const dateWithCurrentTime = new Date(selectedDate);
-        dateWithCurrentTime.setHours(value.getHours(), value.getMinutes(), value.getSeconds(), value.getMilliseconds());
-        pendingAndroidDate.current = dateWithCurrentTime;
-        setAndroidStep('time');
-        return;
-      }
-
-      setShow(false);
-      if (mode === 'datetime' && pendingAndroidDate.current) {
-        const combinedDate = new Date(pendingAndroidDate.current);
-        combinedDate.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0);
-        pendingAndroidDate.current = null;
-        onChange(combinedDate);
-      } else {
-        onChange(selectedDate);
-      }
-    }
-    // iOS: Picker shows inline, updates continuously as user scrolls
-    else if (Platform.OS === 'ios') {
-      if (selectedDate) {
-        onChange(selectedDate);
-      }
-    }
-    // Web: Handle like Android - only update on confirmation
-    else if (Platform.OS === 'web') {
-      if (event.type === 'set' && selectedDate) {
-        onChange(selectedDate);
-      }
-    }
+  // Keep the other half of the value when one half changes.
+  const merge = (part: Part, picked: Date) => {
+    const next = new Date(value);
+    if (part === 'date') next.setFullYear(picked.getFullYear(), picked.getMonth(), picked.getDate());
+    else next.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
+    onChange(next);
   };
 
-  const formatValue = () => {
-    if (mode === 'time') return dayjs(value).format('h:mm A');
-    if (mode === 'date') return dayjs(value).format('ddd, MMM D, YYYY');
-    return dayjs(value).format('ddd, MMM D, YYYY h:mm A');
+  const handleNative = (part: Part) => (event: DateTimePickerEvent, picked?: Date) => {
+    if (Platform.OS === 'android') setOpen(null);
+    if (event.type === 'set' && picked) merge(part, picked);
   };
 
-  const getIcon = () => {
-    if (mode === 'time') return 'time-outline';
-    return 'calendar-outline';
-  };
+  const dateText = formatDate.long(value, locale);
+  const timeText = formatDate.time(value, locale);
 
-  if (Platform.OS === 'web') {
-    return (
-      <View style={styles.container}>
-        {label && <Text style={styles.label}>{label}</Text>}
-        <View style={styles.webPickerWrapper}>
-          <Ionicons name={getIcon()} size={20} color={theme.colors.success} style={{ marginRight: 12 }} />
-          <ReactDatePicker
-            selected={value}
-            onChange={(date: Date) => onChange(date)}
-            showTimeSelect={mode === 'time' || mode === 'datetime'}
-            showTimeSelectOnly={mode === 'time'}
-            timeIntervals={15}
-            timeCaption="Time"
-            dateFormat={mode === 'time' ? 'h:mm aa' : mode === 'date' ? 'EEE, MMM d, yyyy' : 'EEE, MMM d, yyyy h:mm aa'}
-            minDate={minimumDate}
-            portalId="datepicker-portal"
-            popperProps={{
-              strategy: 'fixed',
-            }}
-            customInput={
-              <div style={{
-                backgroundColor: 'transparent',
-                border: 'none',
-                color: theme.colors.text,
-                fontSize: 16,
-                fontWeight: '500',
-                outline: 'none',
-                cursor: 'pointer',
-                flex: 1,
-                fontFamily: 'system-ui',
-              }}>
-                {formatValue()}
-              </div>
-            }
-            calendarClassName="custom-datepicker"
-            popperClassName="custom-datepicker-popper"
-          />
-        </View>
-        <style>{`
-          /* Portal container styles */
-          #datepicker-portal {
-            position: relative;
-            z-index: 9999;
-          }
-          
-          /* Global Overrides for React Datepicker */
-          .react-datepicker-popper, .custom-datepicker-popper {
-            z-index: 9999 !important;
-            position: fixed !important;
-          }
-          
-          .react-datepicker, .custom-datepicker {
-            font-family: system-ui, -apple-system, sans-serif !important;
-            background-color: ${theme.colors.surface} !important;
-            color: ${theme.colors.text} !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            border-radius: 12px !important;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
-            overflow: hidden !important;
-          }
-
-          .react-datepicker__header, .custom-datepicker .react-datepicker__header {
-            background-color: ${theme.colors.surface} !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-          }
-
-          .react-datepicker__month-container, .custom-datepicker .react-datepicker__month-container {
-            background-color: ${theme.colors.surface} !important;
-          }
-
-          .react-datepicker__current-month, .react-datepicker-time__header, .react-datepicker__day-name,
-          .custom-datepicker .react-datepicker__current-month, .custom-datepicker .react-datepicker-time__header, .custom-datepicker .react-datepicker__day-name {
-            color: ${theme.colors.text} !important;
-          }
-
-          .react-datepicker__day, .custom-datepicker .react-datepicker__day {
-            color: ${theme.colors.text} !important;
-            border-radius: 8px !important;
-          }
-
-          .react-datepicker__day:hover, .custom-datepicker .react-datepicker__day:hover {
-            background-color: rgba(255, 255, 255, 0.1) !important;
-            color: ${theme.colors.text} !important;
-          }
-
-          .react-datepicker__day--selected, .react-datepicker__day--keyboard-selected,
-          .custom-datepicker .react-datepicker__day--selected, .custom-datepicker .react-datepicker__day--keyboard-selected {
-            background-color: ${theme.colors.success} !important;
-            color: white !important;
-          }
-
-          .react-datepicker__day--disabled, .custom-datepicker .react-datepicker__day--disabled {
-            color: ${theme.colors.textSecondary} !important;
-            opacity: 0.5 !important;
-          }
-
-          .react-datepicker__time-container, .custom-datepicker .react-datepicker__time-container {
-            border-left: 1px solid rgba(255, 255, 255, 0.1) !important;
-            background-color: ${theme.colors.surface} !important;
-          }
-
-          .react-datepicker__time-container .react-datepicker__time,
-          .custom-datepicker .react-datepicker__time-container .react-datepicker__time {
-            background-color: ${theme.colors.surface} !important;
-          }
-
-          .react-datepicker__time-list-item, .custom-datepicker .react-datepicker__time-list-item {
-            color: ${theme.colors.text} !important;
-          }
-
-          .react-datepicker__time-list-item:hover, .custom-datepicker .react-datepicker__time-list-item:hover {
-            background-color: rgba(255, 255, 255, 0.1) !important;
-            color: ${theme.colors.text} !important;
-          }
-
-          .react-datepicker__time-list-item--selected, .custom-datepicker .react-datepicker__time-list-item--selected {
-            background-color: ${theme.colors.success} !important;
-            color: white !important;
-          }
-
-          .react-datepicker__navigation-icon::before, .custom-datepicker .react-datepicker__navigation-icon::before {
-            border-color: ${theme.colors.text} !important;
-          }
-
-          .react-datepicker__triangle, .custom-datepicker .react-datepicker__triangle {
-            display: none !important;
-          }
-
-          .react-datepicker__navigation:hover *::before, .custom-datepicker .react-datepicker__navigation:hover *::before {
-            border-color: ${theme.colors.success} !important;
-          }
-          
-          .react-datepicker__year-read-view--down-arrow,
-          .react-datepicker__month-read-view--down-arrow,
-          .react-datepicker__month-year-read-view--down-arrow,
-          .custom-datepicker .react-datepicker__year-read-view--down-arrow,
-          .custom-datepicker .react-datepicker__month-read-view--down-arrow,
-          .custom-datepicker .react-datepicker__month-year-read-view--down-arrow {
-            border-color: ${theme.colors.text} !important;
-          }
-        `}</style>
-      </View>
-    );
-  }
+  const webInput = (text: string, style: object) => (
+    <div style={{ cursor: 'pointer', color: theme.colors.text, fontFamily: theme.fonts.semibold, fontSize: 16, ...style }}>{text}</div>
+  );
 
   return (
-    <View style={styles.container}>
-      {label && <Text style={styles.label}>{label}</Text>}
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => {
-          pendingAndroidDate.current = null;
-          setAndroidStep('date');
-          setShow(!show);
-        }}
-        activeOpacity={0.7}
-      >
-        <Ionicons name={getIcon()} size={20} color={theme.colors.success} />
-        <Text style={styles.value}>{formatValue()}</Text>
-      </TouchableOpacity>
-
-      {/* Android: Renders as a dialog when 'show' is true */}
-      {Platform.OS === 'android' && show && (
-        <RNDateTimePicker
-          key={mode === 'datetime' ? androidStep : mode}
-          testID="dateTimePicker"
-          value={pendingAndroidDate.current ?? value}
-          mode={mode === 'datetime' ? androidStep : mode}
-          display="default"
-          onChange={handleChange}
-          minimumDate={mode === 'time' || androidStep === 'time' && mode === 'datetime' ? undefined : minimumDate}
-        />
-      )}
-
-      {/* iOS: Renders inline when 'show' is true */}
-      {Platform.OS === 'ios' && show && (
-        <View style={styles.iosPickerContainer}>
-          <View style={styles.iosPickerHeader}>
-            <TouchableOpacity
-              onPress={() => setShow(false)}
-              style={styles.doneButton}
-              activeOpacity={0.7}
+    <View style={{ gap: 8 }} testID={testID}>
+      <Txt variant="label" tone="secondary">{label}</Txt>
+      <View style={styles.row}>
+        <Ionicons name={icon} size={20} color={theme.colors.primaryText} />
+        {Platform.OS === 'web' ? (
+          <>
+            <View style={{ flex: 1 }}>
+              <ReactDatePicker
+                selected={value}
+                onChange={(d: Date) => d && merge('date', d)}
+                minDate={minimumDate}
+                locale={intlLocale(locale)}
+                portalId="datepicker-portal"
+                popperProps={{ strategy: 'fixed' }}
+                customInput={webInput(dateText, {})}
+              />
+            </View>
+            <ReactDatePicker
+              selected={value}
+              onChange={(d: Date) => d && merge('time', d)}
+              showTimeSelect
+              showTimeSelectOnly
+              timeIntervals={15}
+              timeCaption={t('match.time')}
+              timeFormat="HH:mm"
+              portalId="datepicker-portal"
+              popperProps={{ strategy: 'fixed' }}
+              customInput={webInput(timeText, { fontFamily: theme.fonts.display, fontSize: 22 })}
+            />
+          </>
+        ) : (
+          <>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${label}: ${dateText}`}
+              style={styles.half}
+              onPress={() => setOpen(open === 'date' ? null : 'date')}
             >
-              <Text style={styles.doneButtonText}>Done</Text>
-            </TouchableOpacity>
+              <Txt variant="bodyStrong" numberOfLines={1}>{dateText}</Txt>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${label}: ${timeText}`}
+              style={styles.timeHalf}
+              onPress={() => setOpen(open === 'time' ? null : 'time')}
+            >
+              <Txt variant="number" style={{ fontSize: 22 }}>{timeText}</Txt>
+            </Pressable>
+          </>
+        )}
+      </View>
+      {Platform.OS !== 'web' && open && (
+        Platform.OS === 'ios' ? (
+          <View style={styles.iosPicker}>
+            <RNDateTimePicker
+              value={value}
+              mode={open}
+              display="spinner"
+              minuteInterval={5}
+              onChange={handleNative(open)}
+              minimumDate={open === 'date' ? minimumDate : undefined}
+              textColor={theme.colors.text}
+              themeVariant="dark"
+              locale={intlLocale(locale)}
+            />
+            <Pressable accessibilityRole="button" onPress={() => setOpen(null)} style={styles.done}>
+              <Txt variant="bodyStrong" tone="primary">{t('common.done')}</Txt>
+            </Pressable>
           </View>
+        ) : (
           <RNDateTimePicker
-            testID="dateTimePicker"
             value={value}
-            mode={mode}
-            display="spinner"
-            onChange={handleChange}
-            minimumDate={minimumDate}
-            textColor={theme.colors.text}
-            themeVariant="dark"
-            accentColor={theme.colors.success}
+            mode={open}
+            is24Hour
+            onChange={handleNative(open)}
+            minimumDate={open === 'date' ? minimumDate : undefined}
           />
-        </View>
+        )
+      )}
+      {Platform.OS === 'web' && (
+        <style>{`
+          #datepicker-portal { position: relative; z-index: 9999; }
+          .react-datepicker-popper { z-index: 9999 !important; position: fixed !important; }
+          .react-datepicker { font-family: ${theme.fonts.body}, system-ui, sans-serif !important; background: ${theme.colors.surface} !important;
+            color: ${theme.colors.text} !important; border: 1px solid ${theme.colors.borderStrong} !important; border-radius: 14px !important; overflow: hidden; }
+          .react-datepicker__header, .react-datepicker__month-container, .react-datepicker__time-container,
+          .react-datepicker__time-container .react-datepicker__time { background: ${theme.colors.surface} !important; border-color: ${theme.colors.border} !important; }
+          .react-datepicker__current-month, .react-datepicker-time__header, .react-datepicker__day-name,
+          .react-datepicker__day, .react-datepicker__time-list-item { color: ${theme.colors.text} !important; }
+          .react-datepicker__day { border-radius: 8px !important; }
+          .react-datepicker__day:hover, .react-datepicker__time-list-item:hover { background: ${theme.colors.surfaceRaised} !important; }
+          .react-datepicker__day--selected, .react-datepicker__day--keyboard-selected,
+          .react-datepicker__time-list-item--selected { background: ${theme.colors.primary} !important; color: ${theme.colors.onPrimary} !important; }
+          .react-datepicker__day--disabled { color: ${theme.colors.textMuted} !important; opacity: 0.5; }
+          .react-datepicker__navigation-icon::before { border-color: ${theme.colors.text} !important; }
+          .react-datepicker__triangle { display: none !important; }
+        `}</style>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.textSecondary,
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  button: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    padding: 16,
     gap: 12,
-  },
-  webPickerWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    minHeight: 56,
+    paddingHorizontal: theme.spacing.m,
+    borderRadius: theme.borderRadius.m,
+    backgroundColor: theme.colors.surfaceRaised,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    padding: 16,
+    borderColor: theme.colors.border,
   },
-  value: {
-    fontSize: 16,
-    color: theme.colors.text,
-    fontWeight: '500',
-  },
-  iosPickerContainer: {
-    marginTop: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  iosPickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  doneButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    backgroundColor: theme.colors.success,
-    borderRadius: 8,
-  },
-  doneButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  half: { flex: 1, minHeight: 52, justifyContent: 'center' },
+  timeHalf: { minHeight: 52, minWidth: 64, alignItems: 'flex-end', justifyContent: 'center' },
+  iosPicker: { borderRadius: theme.borderRadius.m, backgroundColor: theme.colors.surfaceRaised, overflow: 'hidden' },
+  done: { alignSelf: 'flex-end', minHeight: 44, paddingHorizontal: 16, justifyContent: 'center' },
 });

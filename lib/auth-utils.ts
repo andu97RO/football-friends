@@ -2,6 +2,9 @@ import type { Session, User } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 
+/** A4: minimum password length on every password form. */
+export const MIN_PASSWORD = 8;
+
 /**
  * Builds the URL Supabase should send users back to after they open an emailed
  * auth link (magic link, signup confirmation, password recovery).

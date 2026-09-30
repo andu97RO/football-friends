@@ -1,14 +1,11 @@
 /**
- * Cross-platform alert dialogs.
- *
- * `Alert.alert` from react-native is a no-op in react-native-web, so on web the
- * request is handed to `<AlertHost />` (mounted in the root layout) instead.
+ * In-app dialogs. Every platform uses `<AlertHost />` (mounted in the root layout)
+ * so confirmations look the same on iOS, Android and web and can carry an icon
+ * and paired verbs ("Keep my spot" / "Leave match").
  */
-import { Alert, Platform } from 'react-native';
-
 export type AppAlertButton = {
   text?: string;
-  style?: 'default' | 'cancel' | 'destructive';
+  style?: 'default' | 'cancel' | 'destructive' | 'primary';
   onPress?: () => void;
 };
 
@@ -16,6 +13,7 @@ export type AppAlertRequest = {
   title: string;
   message?: string;
   buttons: AppAlertButton[];
+  icon?: 'warning' | 'danger' | 'success' | 'info';
 };
 
 type Listener = (request: AppAlertRequest | null) => void;
@@ -50,24 +48,20 @@ export function dismissCurrentAlert(): void {
 }
 
 /**
- * Shows an alert dialog. Mirrors the `Alert.alert` signature so it can be used
- * as a drop-in replacement: native platforms get the OS dialog, web gets an
- * in-app modal. Defaults to a single "OK" button when none are provided.
+ * Shows an alert dialog with the `Alert.alert` signature. Defaults to a single
+ * "OK" button when none are provided.
  */
 export function showAlert(
   title: string,
   message?: string,
-  buttons?: AppAlertButton[]
+  buttons?: AppAlertButton[],
+  icon?: AppAlertRequest['icon']
 ): void {
-  if (Platform.OS !== 'web') {
-    Alert.alert(title, message, buttons);
-    return;
-  }
-
   const request: AppAlertRequest = {
     title,
     message,
     buttons: buttons?.length ? buttons : [{ text: 'OK' }],
+    icon,
   };
 
   if (current) {
@@ -77,4 +71,26 @@ export function showAlert(
 
   current = request;
   emit();
+}
+
+/** Resolves true when the confirming (non-cancel) button is pressed. */
+export function confirm(options: {
+  title: string;
+  message?: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  destructive?: boolean;
+  icon?: AppAlertRequest['icon'];
+}): Promise<boolean> {
+  return new Promise((resolve) => {
+    showAlert(
+      options.title,
+      options.message,
+      [
+        { text: options.cancelLabel, style: options.destructive ? 'primary' : 'cancel', onPress: () => resolve(false) },
+        { text: options.confirmLabel, style: options.destructive ? 'destructive' : 'primary', onPress: () => resolve(true) },
+      ],
+      options.icon ?? (options.destructive ? 'danger' : undefined)
+    );
+  });
 }
