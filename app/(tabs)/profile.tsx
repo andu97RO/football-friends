@@ -1,861 +1,341 @@
+import { useEffect, useState } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import * as ImagePicker from 'expo-image-picker';
+import { theme } from '@/constants/theme';
+import { callFunction, useProfile, usePlayerStats } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/lib/auth-store';
+import { getAuthCallbackUrl, MIN_PASSWORD } from '@/lib/auth-utils';
 import { useGroups } from '@/lib/groups';
+import { LocalePreference, useLocaleStore, useT } from '@/lib/i18n';
+import { confirm, showAlert } from '@/lib/alert';
+import { showToast } from '@/lib/toast';
+import { scheduleLocalTestNotificationAsync, unregisterPushNotifications } from '@/lib/notifications';
+import { Profile } from '@/lib/types';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Platform,
-  Modal,
-  TextInput,
-  Image,
-  ActivityIndicator,
-} from "react-native";
-import { showAlert } from "@/lib/alert";
-import { supabase } from "@/lib/supabase";
-import { useAuthStore } from "@/lib/auth-store";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
-import Animated, { FadeInDown, ZoomIn } from "react-native-reanimated";
-import { theme } from "@/constants/theme";
-import { Ionicons } from "@expo/vector-icons";
-import { useState } from "react";
-import * as ImagePicker from "expo-image-picker";
-import {
-  scheduleLocalTestNotificationAsync,
-  sendNotificationToUser,
-  unregisterPushNotifications,
-} from "@/lib/notifications";
-import { ensureProfile } from "@/lib/ensure-profile";
-import PasswordInput from "@/components/PasswordInput";
+  Avatar, Button, Card, ChoiceChip, ErrorState, Field, ListGroup, ListRow, LoadingState, PasswordField, ratingLabel,
+  Screen, ScreenHeader, SectionHeader, Segmented, Sheet, Txt,
+} from '@/components/ui';
+
+type NotifyKey = 'notify_waitlist' | 'notify_teams' | 'notify_chat' | 'notify_matches';
 
 export default function ProfileScreen() {
-  const { session, setSession } = useAuthStore();
-  const queryClient = useQueryClient();
+  const t = useT();
+  const client = useQueryClient();
+  const session = useAuthStore((s) => s.session);
+  const setSession = useAuthStore((s) => s.setSession);
+  const profile = useProfile();
+  const groups = useGroups();
+  const preference = useLocaleStore((s) => s.preference);
+  const setPreference = useLocaleStore((s) => s.setPreference);
+  const [groupId, setGroupId] = useState<string | undefined>();
+  const [sheet, setSheet] = useState<'edit' | 'password' | null>(null);
+  const group = groups.approved.find((g) => g.club_id === groupId) ?? groups.approved[0];
+  const stats = usePlayerStats(group?.club_id);
 
-  // Edit Modal State
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editAvatar, setEditAvatar] = useState<string | null>(null);
+  const updatePrefs = useMutation({
+    mutationFn: async (patch: Partial<Record<NotifyKey, boolean>>) => {
+      const { error } = await supabase.from('profile').update(patch).eq('user_id', session!.user.id);
+      if (error) throw error;
+    },
+    onMutate: (patch) => {
+      client.setQueryData<Profile>(['profile', session?.user.id], (old) => (old ? { ...old, ...patch } : old));
+    },
+    onError: (error: Error) => {
+      void client.invalidateQueries({ queryKey: ['profile'] });
+      showAlert(t('common.errorTitle'), error.message);
+    },
+  });
+
+  const signOut = async () => {
+    const ok = await confirm({ title: t('profile.signOutTitle'), cancelLabel: t('common.cancel'), confirmLabel: t('profile.signOut') });
+    if (!ok) return;
+    // Clear the push token so the next person on this device doesn't get this account's notifications.
+    if (session?.user.id) await unregisterPushNotifications(session.user.id);
+    client.clear();
+    await supabase.auth.signOut();
+    setSession(null);
+  };
+
+  // P4: in-app account deletion (App Store guideline 5.1.1(v)).
+  const deleteAccount = async () => {
+    const ok = await confirm({
+      title: t('profile.deleteTitle'),
+      message: t('profile.deleteBody'),
+      cancelLabel: t('profile.keepAccount'),
+      confirmLabel: t('profile.deleteConfirm'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await callFunction('delete-account', {});
+      client.clear();
+      await supabase.auth.signOut({ scope: 'local' });
+      setSession(null);
+      showToast(t('profile.deleted'));
+    } catch (error) {
+      showAlert(t('common.errorTitle'), error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const testNotification = async () => {
+    const result = await scheduleLocalTestNotificationAsync({ title: t('app.name'), body: t('profile.testNotificationBody'), secondsFromNow: 2 });
+    showToast(result.success ? t('profile.testNotificationSent') : result.error ?? t('common.errorTitle'), { tone: result.success ? 'default' : 'error' });
+  };
+
+  const header = <ScreenHeader title={t('tabs.profile')} />;
+  if (profile.isLoading) return <Screen header={header} tabBar><LoadingState /></Screen>;
+  if (profile.error || !profile.data) return <Screen header={header} tabBar><ErrorState error={profile.error} onRetry={() => profile.refetch()} /></Screen>;
+  const me = profile.data;
+  const s = stats.data;
+
+  return (
+    <Screen header={header} tabBar testID="profile-screen">
+      {/* P2: one way to edit the profile; no duplicate pencil on the avatar. */}
+      <View style={styles.head}>
+        <View style={styles.ring}>
+          <Avatar name={me.display_name} url={me.avatar_url} seed={me.user_id} size={76} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Txt variant="title" numberOfLines={2}>{me.display_name}</Txt>
+          <Txt variant="caption" tone="secondary" numberOfLines={1}>{session?.user.email}</Txt>
+        </View>
+      </View>
+      <Button title={t('profile.edit')} icon="create-outline" variant="secondary" onPress={() => setSheet('edit')} testID="edit-profile" />
+
+      {group && (
+        <>
+          {groups.approved.length > 1 && (
+            <View style={styles.chips}>
+              {groups.approved.map((g) => (
+                <ChoiceChip key={g.club_id} label={g.name} selected={g.club_id === group.club_id} onPress={() => setGroupId(g.club_id)} />
+              ))}
+            </View>
+          )}
+          {/* P1: one format (whole numbers out of 5) and one line on who sets it. */}
+          <Card style={{ gap: 6 }} testID="rating-card">
+            <Txt variant="label" tone="secondary">{t('profile.ratingIn', { group: group.name })}</Txt>
+            <Txt variant="hero">{ratingLabel(group.rating)}</Txt>
+            <Txt variant="caption" tone="secondary">{t('rating.modelShort')}</Txt>
+          </Card>
+          <View style={styles.stats}>
+            <Stat value={s ? String(s.games) : '–'} label={t('profile.games')} />
+            <Stat value={s ? String(s.wins) : '–'} label={t('profile.wins')} />
+            <Stat value={s ? String(s.motm) : '–'} label={t('profile.motm')} />
+            <Stat value={s?.showed_up !== null && s?.showed_up !== undefined ? `${s.showed_up}%` : '–'} label={t('profile.showedUp')} />
+          </View>
+          <Card style={styles.form}>
+            <Txt variant="label" tone="secondary" style={{ flex: 1 }}>{t('profile.form')}</Txt>
+            {s && s.form.length > 0 ? (
+              s.form.map((r, i) => (
+                <View key={i} style={[styles.formChip, r === 'W' ? styles.win : r === 'L' ? styles.loss : styles.draw]} accessibilityLabel={t(`profile.result${r}`)}>
+                  <Txt variant="number" style={{ fontSize: 16, color: r === 'W' ? theme.colors.success : r === 'L' ? theme.colors.error : theme.colors.textSecondary }}>{t(`profile.short${r}`)}</Txt>
+                </View>
+              ))
+            ) : (
+              <Txt variant="caption" tone="muted">{t('profile.noForm')}</Txt>
+            )}
+          </Card>
+        </>
+      )}
+
+      {/* P3: separate switches, plain names; the test sender is a developer tool. */}
+      <SectionHeader title={t('profile.notifications')} />
+      {Platform.OS === 'web' && <Txt variant="caption" tone="muted">{t('profile.notificationsWeb')}</Txt>}
+      <ListGroup>
+        {(['notify_waitlist', 'notify_teams', 'notify_matches', 'notify_chat'] as NotifyKey[]).map((key) => (
+          <ListRow
+            key={key}
+            kind="toggle"
+            title={t(`profile.${key}`)}
+            subtitle={t(`profile.${key}_help`)}
+            toggled={me[key] !== false}
+            onToggle={(value) => updatePrefs.mutate({ [key]: value })}
+            testID={key}
+          />
+        ))}
+        {__DEV__ && Platform.OS !== 'web' && <ListRow kind="action" icon="bug-outline" title={t('profile.testNotification')} onPress={testNotification} />}
+      </ListGroup>
+
+      <SectionHeader title={t('profile.language')} />
+      <Segmented<LocalePreference>
+        value={preference}
+        onChange={setPreference}
+        options={[
+          { value: 'system', label: t('profile.languageSystem') },
+          { value: 'en', label: 'English' },
+          { value: 'ro', label: 'Română' },
+        ]}
+      />
+
+      <SectionHeader title={t('profile.account')} />
+      <ListGroup>
+        <ListRow icon="key-outline" title={t('profile.changePassword')} onPress={() => setSheet('password')} testID="change-password" />
+        <ListRow kind="action" icon="log-out-outline" title={t('profile.signOut')} onPress={signOut} testID="sign-out" />
+        <ListRow kind="action" icon="trash-outline" tone="danger" title={t('profile.deleteAccount')} onPress={deleteAccount} testID="delete-account" />
+      </ListGroup>
+
+      <EditProfileSheet visible={sheet === 'edit'} onClose={() => setSheet(null)} profile={me} />
+      <ChangePasswordSheet visible={sheet === 'password'} onClose={() => setSheet(null)} />
+    </Screen>
+  );
+}
+
+function Stat({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={styles.stat}>
+      <Txt variant="number">{value}</Txt>
+      <Txt variant="label" tone="secondary" style={{ fontSize: 10 }} numberOfLines={2}>{label}</Txt>
+    </View>
+  );
+}
+
+function EditProfileSheet(props: { visible: boolean; onClose: () => void; profile: Profile }) {
+  return props.visible ? <OpenEditProfileSheet {...props} /> : null;
+}
+
+// Mounted per opening, so background refetches never overwrite edits in progress.
+function OpenEditProfileSheet({ visible, onClose, profile }: { visible: boolean; onClose: () => void; profile: Profile }) {
+  const t = useT();
+  const client = useQueryClient();
+  const [name, setName] = useState(profile.display_name);
+  const [avatar, setAvatar] = useState<string | null>(profile.avatar_url ?? null);
   const [uploading, setUploading] = useState(false);
 
-  // Change Password Modal State
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordLoading, setPasswordLoading] = useState(false);
-  const [notificationLoading, setNotificationLoading] = useState(false);
-
-  const { current } = useGroups();
-  const { data: profile, isLoading } = useQuery({
-    queryKey: ["profile", session?.user?.id],
-    queryFn: async () => {
-      if (!session?.user?.id) return null;
-      return ensureProfile(session.user.id, session.user.email);
-    },
-    enabled: !!session?.user?.id,
-  });
-
-  const updateProfileMutation = useMutation({
-    mutationFn: async (updates: {
-      display_name: string;
-      avatar_url?: string;
-    }) => {
-      if (!session?.user?.id) throw new Error("Not authenticated");
-
-      const { data, error } = await supabase
-        .from("profile")
-        .update(updates)
-        .eq("user_id", session.user.id)
-        .select("user_id,display_name,avatar_url,created_at")
-        .single();
-
+  const save = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('profile').update({ display_name: name.trim(), avatar_url: avatar }).eq('user_id', profile.user_id);
       if (error) throw error;
-      return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profile"] });
-      setShowEditModal(false);
-      showAlert("Success", "Profile updated successfully");
+      void client.invalidateQueries({ queryKey: ['profile'] });
+      void client.invalidateQueries({ queryKey: ['feed'] });
+      onClose();
+      showToast(t('profile.saved'));
     },
-    onError: (error: any) => {
-      showAlert("Error", error.message);
-    },
+    onError: (error: Error) => showAlert(t('common.errorTitle'), error.message),
   });
 
-  const handleEditPress = () => {
-    if (profile) {
-      setEditName(profile.display_name);
-      setEditAvatar(profile.avatar_url || null);
-      setShowEditModal(true);
-    }
-  };
-
-  const pickImage = async () => {
+  const pick = async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.5,
-      });
-
-      if (!result.canceled && result.assets[0].uri) {
-        uploadAvatar(result.assets[0].uri);
-      }
-    } catch {
-      showAlert("Error", "Failed to pick image");
-    }
-  };
-
-  const uploadAvatar = async (uri: string) => {
-    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.5 });
+      if (result.canceled || !result.assets[0]?.uri) return;
       setUploading(true);
-
-      // Convert URI to Blob
-      const response = await fetch(uri);
-      const blob = await response.blob();
-
-      if (blob.size > 2 * 1024 * 1024) throw new Error('Choose an image under 2 MB');
+      const blob = await (await fetch(result.assets[0].uri)).blob();
+      if (blob.size > 2 * 1024 * 1024) throw new Error(t('profile.photoTooBig'));
       const extensions: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
-      if (!extensions[blob.type]) throw new Error('Choose a JPEG, PNG or WebP image');
-      const fileName = `${session?.user?.id}/${Date.now()}.${extensions[blob.type]}`;
-      const filePath = `${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, blob, {
-          contentType: blob.type,
-          upsert: true,
-        });
-
-      if (uploadError) {
-        console.error("Upload error details:", uploadError);
-        throw uploadError;
-      }
-
-      const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
-      setEditAvatar(data.publicUrl);
-    } catch (error: any) {
-      console.error("Full error:", error);
-      showAlert(
-        "Error",
-        `Error uploading image: ${error.message || "Unknown error"}`
-      );
+      if (!extensions[blob.type]) throw new Error(t('profile.photoType'));
+      const path = `${profile.user_id}/${Date.now()}.${extensions[blob.type]}`;
+      const { error } = await supabase.storage.from('avatars').upload(path, blob, { contentType: blob.type, upsert: true });
+      if (error) throw error;
+      setAvatar(supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl);
+    } catch (error) {
+      showAlert(t('common.errorTitle'), error instanceof Error ? error.message : String(error));
     } finally {
       setUploading(false);
     }
   };
 
-  const handleSaveProfile = () => {
-    updateProfileMutation.mutate({
-      display_name: editName,
-      avatar_url: editAvatar || undefined,
-    });
-  };
-
-  const handleChangePassword = async () => {
-    if (!newPassword || !confirmPassword) {
-      showAlert("Error", "Please fill in all fields");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      showAlert("Error", "Passwords do not match");
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      showAlert("Error", "Password must be at least 6 characters");
-      return;
-    }
-
-    setPasswordLoading(true);
-    try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (error) throw error;
-
-      showAlert("Success", "Your password has been updated successfully.");
-      setShowPasswordModal(false);
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch (error: any) {
-      showAlert("Error", error.message || "Failed to update password");
-    } finally {
-      setPasswordLoading(false);
-    }
-  };
-
-  const handleSignOut = () => {
-    const performSignOut = async () => {
-      // Clear the push token so a future user of this device doesn't keep
-      // receiving notifications meant for this account.
-      if (session?.user?.id) {
-        await unregisterPushNotifications(session.user.id);
+  return (
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      title={t('profile.edit')}
+      testID="edit-profile-sheet"
+      footer={
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <Button title={t('common.cancel')} variant="secondary" onPress={onClose} style={{ flex: 1 }} />
+          <Button title={t('common.save')} onPress={() => save.mutate()} loading={save.isPending} disabled={!name.trim() || uploading} style={{ flex: 2 }} testID="save-profile" />
+        </View>
       }
-      // Clear all React Query cache to prevent stale data on next login
-      queryClient.clear();
-      await supabase.auth.signOut();
-      setSession(null);
-      // Navigation is handled by auth guards in layouts (prevents navigating before RootLayout mounts).
-    };
-
-    showAlert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: performSignOut,
-      },
-    ]);
-  };
-
-  const handleTestLocalNotification = async () => {
-    if (Platform.OS === "web") {
-      showAlert("Not supported", "Notifications are not supported on web.");
-      return;
-    }
-
-    setNotificationLoading(true);
-    try {
-      const result = await scheduleLocalTestNotificationAsync({
-        title: "Football Friends",
-        body: "Local notification test (should appear in ~2s).",
-        secondsFromNow: 2,
-      });
-
-      if (!result.success) {
-        showAlert(
-          "Notification test failed",
-          result.error || "Unknown error"
-        );
-        return;
-      }
-
-      showAlert("Scheduled", "A local test notification was scheduled.");
-    } finally {
-      setNotificationLoading(false);
-    }
-  };
-
-  const handleTestPushNotification = async () => {
-    if (!session?.user?.id) {
-      showAlert("Error", "Not authenticated.");
-      return;
-    }
-
-    if (Platform.OS === "web") {
-      showAlert(
-        "Not supported",
-        "Push notifications are not supported on web."
-      );
-      return;
-    }
-
-    setNotificationLoading(true);
-    try {
-      const result = await sendNotificationToUser(
-        session.user.id,
-        "Football Friends",
-        "Push notification test."
-      );
-
-      if (!result.success) {
-        showAlert(
-          "Push test failed",
-          result.error ||
-            "No push token found. Make sure you are on a physical device using a development build, and you have allowed notifications."
-        );
-        return;
-      }
-
-      showAlert("Sent", "A test push notification was sent.");
-    } finally {
-      setNotificationLoading(false);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <View style={styles.centered}>
-        <Text style={{ color: theme.colors.text }}>Loading profile...</Text>
+    >
+      <View style={styles.head}>
+        <View style={styles.ring}>
+          <Avatar name={name} url={avatar} seed={profile.user_id} size={76} />
+        </View>
+        <View style={{ flex: 1, gap: 4, alignItems: 'flex-start' }}>
+          <Button title={t('profile.changePhoto')} icon="camera-outline" variant="secondary" size="m" onPress={pick} loading={uploading} />
+          {/* P5: only offer removal when there is a photo, with a full-size target. */}
+          {avatar && <Button title={t('profile.removePhoto')} variant="dangerGhost" size="m" onPress={() => setAvatar(null)} />}
+        </View>
       </View>
-    );
-  }
+      <Field label={t('auth.displayName')} helper={t('profile.displayNameHelp')} value={name} onChangeText={setName} maxLength={40} testID="display-name-input" />
+    </Sheet>
+  );
+}
+
+/** P6: the current password is required; same label as every password form. */
+function ChangePasswordSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const t = useT();
+  const session = useAuthStore((s) => s.session);
+  const email = session?.user.email ?? '';
+  const hasPassword = (session?.user.identities ?? []).some((i) => i.provider === 'email') || session?.user.app_metadata?.provider === 'email';
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!visible) {
+      setCurrent('');
+      setNext('');
+      setError(null);
+    }
+  }, [visible]);
+
+  const save = async () => {
+    setError(null);
+    if (hasPassword && !current) return setError(t('profile.enterCurrent'));
+    if (next.length < MIN_PASSWORD) return setError(t('auth.passwordTooShort', { count: MIN_PASSWORD }));
+    setLoading(true);
+    try {
+      if (hasPassword) {
+        const { error: verifyError } = await supabase.auth.signInWithPassword({ email, password: current });
+        if (verifyError) throw new Error(t('profile.currentWrong'));
+      }
+      const { error: updateError } = await supabase.auth.updateUser({ password: next });
+      if (updateError) throw updateError;
+      showToast(t('auth.passwordUpdated'));
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendReset = async () => {
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: getAuthCallbackUrl({ type: 'recovery' }) });
+    if (resetError) showAlert(t('common.errorTitle'), resetError.message);
+    else showToast(t('profile.resetSent', { email }));
+  };
 
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={[theme.colors.background, "#1e1b4b"]}
-        style={StyleSheet.absoluteFill}
-      />
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        <Animated.View
-          entering={FadeInDown.delay(100).springify()}
-          style={styles.profileSection}
-        >
-          <TouchableOpacity onPress={handleEditPress} activeOpacity={0.8}>
-            <View style={styles.avatarContainer}>
-              <LinearGradient
-                colors={[theme.colors.primary, theme.colors.secondary]}
-                style={styles.avatarGradient}
-              >
-                {profile?.avatar_url ? (
-                  <Image
-                    source={{ uri: profile.avatar_url }}
-                    style={styles.avatarImage}
-                  />
-                ) : (
-                  <Text style={styles.avatarText}>
-                    {profile?.display_name?.charAt(0).toUpperCase() || "P"}
-                  </Text>
-                )}
-                <View style={styles.editBadge}>
-                  <Ionicons name="pencil" size={12} color="#fff" />
-                </View>
-              </LinearGradient>
-            </View>
-          </TouchableOpacity>
-          <Text style={styles.name}>{profile?.display_name || "Player"}</Text>
-          <Text style={styles.email}>{session?.user?.email}</Text>
-
-          <View style={styles.profileButtons}>
-            <TouchableOpacity
-              onPress={handleEditPress}
-              style={styles.editButton}
-            >
-              <Text style={styles.editButtonText}>Edit Profile</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setShowPasswordModal(true)}
-              style={styles.editButton}
-            >
-              <Ionicons
-                name="key-outline"
-                size={14}
-                color={theme.colors.primaryLight}
-                style={{ marginRight: 4 }}
-              />
-              <Text style={styles.editButtonText}>Change Password</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-
-        <Animated.View
-          entering={FadeInDown.delay(200).springify()}
-          style={styles.statsSection}
-        >
-          <BlurView intensity={20} tint="dark" style={styles.statCard}>
-            <View style={styles.statHeader}>
-              <Ionicons name="star" size={24} color={theme.colors.warning} />
-              <Text style={styles.statTitle}>Player Rating</Text>
-            </View>
-            <Text style={styles.statValue}>{current?.rating ?? "—"}</Text>
-            <Text style={styles.statLabel}>Base Rating</Text>
-          </BlurView>
-        </Animated.View>
-
-        <Animated.View
-          entering={FadeInDown.delay(250).springify()}
-          style={styles.statsSection}
-        >
-          <BlurView intensity={20} tint="dark" style={styles.statCard}>
-            <View style={styles.statHeader}>
-              <Ionicons
-                name="notifications"
-                size={24}
-                color={theme.colors.primaryLight}
-              />
-              <Text style={styles.statTitle}>Notifications</Text>
-            </View>
-
-            <TouchableOpacity
-              onPress={handleTestLocalNotification}
-              style={styles.editButton}
-              disabled={notificationLoading}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="alarm-outline"
-                size={14}
-                color={theme.colors.primaryLight}
-                style={{ marginRight: 4 }}
-              />
-              <Text style={styles.editButtonText}>
-                {notificationLoading
-                  ? "Please wait…"
-                  : "Test local notification"}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleTestPushNotification}
-              style={[styles.editButton, { marginTop: theme.spacing.s }]}
-              disabled={notificationLoading}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="send-outline"
-                size={14}
-                color={theme.colors.primaryLight}
-                style={{ marginRight: 4 }}
-              />
-              <Text style={styles.editButtonText}>
-                {notificationLoading
-                  ? "Please wait…"
-                  : "Test push notification"}
-              </Text>
-            </TouchableOpacity>
-          </BlurView>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(300).springify()}>
-          <TouchableOpacity
-            style={styles.signOutButton}
-            onPress={handleSignOut}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={[theme.colors.error, "#991b1b"]}
-              style={styles.signOutGradient}
-            >
-              <Text style={styles.signOutText}>Sign Out</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </Animated.View>
-      </ScrollView>
-
-      {/* Edit Profile Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={showEditModal}
-        onRequestClose={() => setShowEditModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <BlurView
-            intensity={20}
-            tint="dark"
-            style={StyleSheet.absoluteFill}
-          />
-          <Animated.View
-            entering={ZoomIn.springify()}
-            style={styles.modalContent}
-          >
-            <LinearGradient
-              colors={[theme.colors.surface, "#1e1b4b"]}
-              style={styles.modalGradient}
-            >
-              <Text style={styles.modalTitle}>Edit Profile</Text>
-
-              <TouchableOpacity
-                onPress={pickImage}
-                style={styles.modalAvatarContainer}
-              >
-                {editAvatar ? (
-                  <Image
-                    source={{ uri: editAvatar }}
-                    style={styles.modalAvatar}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      styles.modalAvatar,
-                      { backgroundColor: theme.colors.primary },
-                    ]}
-                  >
-                    <Text style={styles.avatarText}>
-                      {editName?.charAt(0).toUpperCase() || "P"}
-                    </Text>
-                  </View>
-                )}
-                <View style={styles.modalEditBadge}>
-                  {uploading ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Ionicons name="camera" size={16} color="#fff" />
-                  )}
-                </View>
-              </TouchableOpacity>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Display Name</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editName}
-                  onChangeText={setEditName}
-                  placeholder="Enter your name"
-                  placeholderTextColor={theme.colors.textSecondary}
-                />
-              </View>
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.cancelButton]}
-                  onPress={() => setShowEditModal(false)}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.saveButton]}
-                  onPress={handleSaveProfile}
-                  disabled={updateProfileMutation.isPending || uploading}
-                >
-                  <LinearGradient
-                    colors={[theme.colors.primary, theme.colors.secondary]}
-                    style={styles.saveButtonGradient}
-                  >
-                    <Text style={styles.saveButtonText}>
-                      {updateProfileMutation.isPending ? "Saving..." : "Save"}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </LinearGradient>
-          </Animated.View>
-        </View>
-      </Modal>
-
-      {/* Change Password Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={showPasswordModal}
-        onRequestClose={() => setShowPasswordModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <BlurView
-            intensity={20}
-            tint="dark"
-            style={StyleSheet.absoluteFill}
-          />
-          <Animated.View
-            entering={ZoomIn.springify()}
-            style={styles.modalContent}
-          >
-            <LinearGradient
-              colors={[theme.colors.surface, "#1e1b4b"]}
-              style={styles.modalGradient}
-            >
-              <View style={styles.passwordIconContainer}>
-                <Ionicons name="key" size={32} color={theme.colors.success} />
-              </View>
-              <Text style={styles.modalTitle}>Change Password</Text>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>New Password</Text>
-                <PasswordInput
-                  label="New Password"
-                  style={styles.input}
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  placeholder="Enter new password"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  autoCapitalize="none"
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Confirm Password</Text>
-                <PasswordInput
-                  label="Confirm Password"
-                  style={styles.input}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="Confirm new password"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  autoCapitalize="none"
-                />
-              </View>
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.cancelButton]}
-                  onPress={() => {
-                    setShowPasswordModal(false);
-                    setNewPassword("");
-                    setConfirmPassword("");
-                  }}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.saveButton]}
-                  onPress={handleChangePassword}
-                  disabled={passwordLoading}
-                >
-                  <LinearGradient
-                    colors={[theme.colors.success, "#059669"]}
-                    style={styles.saveButtonGradient}
-                  >
-                    <Text style={styles.saveButtonText}>
-                      {passwordLoading ? "Updating..." : "Update"}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </LinearGradient>
-          </Animated.View>
-        </View>
-      </Modal>
-    </View>
+    <Sheet visible={visible} onClose={onClose} title={hasPassword ? t('profile.changePassword') : t('profile.setPassword')} subtitle={t('auth.passwordRule', { count: MIN_PASSWORD })} testID="password-sheet">
+      {hasPassword && (
+        <PasswordField label={t('profile.currentPassword')} value={current} onChangeText={setCurrent} autoComplete="password" textContentType="password" testID="current-password" />
+      )}
+      <PasswordField label={t('auth.newPassword')} placeholder={t('auth.passwordNewPlaceholder')} value={next} onChangeText={setNext} autoComplete="password-new" textContentType="newPassword" testID="new-password" />
+      {error && <Txt variant="body" tone="error" accessibilityRole="alert">{error}</Txt>}
+      <Button title={t('auth.updatePassword')} onPress={save} loading={loading} testID="update-password" />
+      {hasPassword && <Button title={t('profile.forgotCurrent')} variant="link" size="m" onPress={sendReset} />}
+    </Sheet>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
+  head: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  ring: { padding: 3, borderRadius: 44, borderWidth: 2, borderColor: theme.colors.primary },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  stat: {
+    flexGrow: 1, flexBasis: '45%', minHeight: 76, padding: 14, gap: 2, borderRadius: theme.borderRadius.m,
+    backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border,
   },
-  content: {
-    flex: 1,
-    padding: theme.spacing.l,
-  },
-  contentContainer: {
-    paddingBottom: 120,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: theme.colors.background,
-  },
-  profileSection: {
-    alignItems: "center",
-    marginBottom: theme.spacing.xxl,
-    marginTop: theme.spacing.xl,
-  },
-  avatarContainer: {
-    marginBottom: theme.spacing.m,
-    ...theme.shadows.large,
-  },
-  avatarGradient: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-  },
-  avatarImage: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-  },
-  avatarText: {
-    fontSize: 40,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  editBadge: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    backgroundColor: theme.colors.primary,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: theme.colors.background,
-  },
-  name: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  email: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.m,
-  },
-  profileButtons: {
-    flexDirection: "row",
-    gap: theme.spacing.s,
-  },
-  editButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: theme.spacing.m,
-    paddingVertical: theme.spacing.s,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: theme.borderRadius.full,
-  },
-  editButtonText: {
-    color: theme.colors.primaryLight,
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  passwordIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: theme.spacing.m,
-  },
-  statsSection: {
-    marginBottom: theme.spacing.xxl,
-  },
-  statCard: {
-    borderRadius: theme.borderRadius.xl,
-    padding: theme.spacing.l,
-    alignItems: "center",
-    overflow: "hidden",
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-  },
-  statHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: theme.spacing.s,
-    gap: 8,
-  },
-  statTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: theme.colors.text,
-  },
-  statValue: {
-    fontSize: 48,
-    fontWeight: "bold",
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  signOutButton: {
-    borderRadius: theme.borderRadius.l,
-    overflow: "hidden",
-    ...theme.shadows.medium,
-  },
-  signOutGradient: {
-    padding: theme.spacing.m,
-    alignItems: "center",
-  },
-  signOutText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalContent: {
-    width: "85%",
-    maxWidth: 400,
-    borderRadius: theme.borderRadius.xl,
-    overflow: "hidden",
-    ...theme.shadows.large,
-  },
-  modalGradient: {
-    padding: theme.spacing.xl,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: theme.colors.text,
-    marginBottom: theme.spacing.l,
-  },
-  modalAvatarContainer: {
-    position: "relative",
-    marginBottom: theme.spacing.l,
-  },
-  modalAvatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalEditBadge: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    backgroundColor: theme.colors.primary,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: theme.colors.surface,
-  },
-  inputContainer: {
-    width: "100%",
-    marginBottom: theme.spacing.xl,
-    gap: 8,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: theme.colors.textSecondary,
-    marginLeft: 4,
-  },
-  input: {
-    backgroundColor: "rgba(0, 0, 0, 0.2)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: theme.borderRadius.m,
-    padding: theme.spacing.m,
-    color: theme.colors.text,
-    fontSize: 16,
-  },
-  modalButtons: {
-    flexDirection: "row",
-    gap: theme.spacing.m,
-    width: "100%",
-  },
-  modalButton: {
-    flex: 1,
-    borderRadius: theme.borderRadius.m,
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 48,
-  },
-  cancelButton: {
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-  },
-  cancelButtonText: {
-    color: theme.colors.text,
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  saveButton: {
-    ...theme.shadows.medium,
-  },
-  saveButtonGradient: {
-    width: "100%",
-    height: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  saveButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 16,
-  },
+  form: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  formChip: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  win: { backgroundColor: theme.colors.successTint },
+  loss: { backgroundColor: theme.colors.errorTint },
+  draw: { backgroundColor: theme.colors.surfaceRaised },
 });

@@ -1,33 +1,34 @@
-import { create } from 'zustand';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from './supabase';
+import { rpc } from './api';
 import { useAuthStore } from './auth-store';
 import { ensureProfile } from './ensure-profile';
-import { GroupMembership, Profile } from './types';
+import { supabase } from './supabase';
+import { GroupMember, GroupRole, MyGroup } from './types';
+import { appUrl } from './utils';
 
-export const useGroupStore = create<{ selectedId: string | null; select: (id: string | null) => void }>((set) => ({
-  selectedId: null,
-  select: (selectedId) => set({ selectedId }),
-}));
+export const GROUP_KEYS = ['my-groups', 'group-members', 'group-role', 'group-invite', 'feed'];
 
+/** The caller's groups (approved and pending), with their own rating. */
 export function useGroups() {
   const session = useAuthStore((s) => s.session);
-  const { selectedId, select } = useGroupStore();
   const query = useQuery({
     queryKey: ['my-groups', session?.user.id],
     enabled: !!session?.user.id,
-    refetchInterval: 15000,
+    refetchInterval: 30000,
     queryFn: async () => {
       await ensureProfile(session!.user.id, session!.user.email);
-      const { data, error } = await supabase.from('group_membership')
-        .select('*, club(id,name,description)').eq('user_id', session!.user.id).order('created_at');
-      if (error) throw error;
-      return data as GroupMembership[];
+      return rpc<MyGroup[]>('my_groups');
     },
   });
-  const approved = query.data?.filter((m) => m.status === 'approved') ?? [];
-  const current = approved.find((m) => m.club_id === selectedId) ?? approved[0];
-  return { ...query, current, approved, select, isAdmin: current?.role === 'owner' || current?.role === 'admin' };
+  const approved = query.data?.filter((g) => g.status === 'approved') ?? [];
+  const pending = query.data?.filter((g) => g.status === 'pending') ?? [];
+  const adminOf = approved.filter((g) => g.role === 'owner' || g.role === 'admin');
+  const pendingRequests = adminOf.reduce((sum, g) => sum + g.pending_requests, 0);
+  return { ...query, approved, pending, adminOf, pendingRequests };
+}
+
+export function isAdminRole(role: GroupRole | null | undefined): boolean {
+  return role === 'owner' || role === 'admin';
 }
 
 export function useGroupRole(groupId: string | undefined) {
@@ -35,22 +36,30 @@ export function useGroupRole(groupId: string | undefined) {
   return useQuery({
     queryKey: ['group-role', groupId, session?.user.id],
     enabled: !!groupId && !!session?.user.id,
-    refetchInterval: 15000,
+    refetchInterval: 30000,
     queryFn: async () => {
       const { data, error } = await supabase.from('group_membership').select('role,status')
         .eq('club_id', groupId!).eq('user_id', session!.user.id).maybeSingle();
       if (error) throw error;
-      return data?.status === 'approved' ? data.role as GroupMembership['role'] : null;
+      return data?.status === 'approved' ? (data.role as GroupRole) : null;
     },
   });
 }
 
-export async function groupPlayers(groupId: string) {
-  const { data: members, error } = await supabase.from('group_membership').select('*').eq('club_id', groupId);
-  if (error) throw error;
-  if (!members?.length) return [];
-  const { data: profiles, error: profileError } = await supabase.from('profile')
-    .select('user_id,display_name,avatar_url,created_at').in('user_id', members.map((m) => m.user_id));
-  if (profileError) throw profileError;
-  return members.map((m) => ({ ...m, ...profiles?.find((p) => p.user_id === m.user_id), rating_base: m.rating })) as (GroupMembership & Profile)[];
+export function useGroupMembers(groupId: string | undefined) {
+  const session = useAuthStore((s) => s.session);
+  return useQuery({
+    queryKey: ['group-members', groupId, session?.user.id],
+    enabled: !!groupId && !!session?.user.id,
+    queryFn: () => rpc<GroupMember[]>('group_members', { g: groupId }),
+  });
+}
+
+export function groupAction(args: { action: string; g?: string | null; target?: string; value?: string; description?: string }) {
+  return rpc<string>('group_action', args);
+}
+
+/** Shareable invite link for a group code (M8). */
+export function inviteUrl(code: string): string {
+  return appUrl(`/join/${code}`);
 }

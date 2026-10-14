@@ -4,12 +4,15 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/auth-store';
+import { theme } from '@/constants/theme';
+import { useT } from '@/lib/i18n';
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { setSession } = useAuthStore();
-  const [status, setStatus] = useState('Processing...');
+  const t = useT();
+  const [status, setStatus] = useState(t('auth.signingIn'));
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -47,7 +50,7 @@ export default function AuthCallbackScreen() {
       }
 
       if (access_token && refresh_token) {
-        setStatus('Setting up your session...');
+        setStatus(t('auth.signingIn'));
         
         // Set the session using the tokens
         const { data, error } = await supabase.auth.setSession({
@@ -61,7 +64,7 @@ export default function AuthCallbackScreen() {
 
         // Check if this is a password recovery flow
         if (isRecovery) {
-          setStatus('Redirecting to password reset...');
+          setStatus(t('auth.resetTitle'));
           router.replace('/(auth)/reset-password');
         } else {
           router.replace(isRecovery || useAuthStore.getState().recovery ? '/(auth)/reset-password' : '/(tabs)/matches');
@@ -85,11 +88,12 @@ export default function AuthCallbackScreen() {
     }
     };
     void handleCallback();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.type, params.access_token, params.refresh_token, router, setSession]);
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator size="large" color="#10b981" />
+      <ActivityIndicator size="large" color={theme.colors.primary} />
       <Text style={styles.text}>{status}</Text>
     </View>
   );
@@ -100,11 +104,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background,
   },
   text: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6b7280',
+    fontFamily: theme.fonts.body,
+    color: theme.colors.textSecondary,
   },
 });

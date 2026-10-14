@@ -2,6 +2,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuthStore } from '@/lib/auth-store';
 import { isVerifiedSession } from '@/lib/auth-utils';
+import { theme } from '@/constants/theme';
 
 export default function Index() {
   const { session } = useAuthStore();
@@ -10,7 +11,7 @@ export default function Index() {
   if (session === undefined) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#10b981" />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
@@ -28,6 +29,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background,
   },
 });

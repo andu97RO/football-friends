@@ -1,83 +1,50 @@
+/**
+ * FootyFriends design tokens: dark pitch palette with a lime accent.
+ *
+ * Lime is reserved for the one primary action on a screen, the active tab and
+ * "you" markers. Status, selection and chat use tints or neutral colours so the
+ * accent keeps its meaning (review: "Lime does too many jobs").
+ */
 export const theme = {
   colors: {
-    primary: '#4F46E5', // Indigo 600
-    primaryLight: '#818CF8', // Indigo 400
-    secondary: '#EC4899', // Pink 500
-    background: '#0F172A', // Slate 900
-    surface: '#1E293B', // Slate 800
-    surfaceLight: '#334155', // Slate 700
-    text: '#F8FAFC', // Slate 50
-    textSecondary: '#94A3B8', // Slate 400
-    success: '#10B981', // Emerald 500
-    warning: '#F59E0B', // Amber 500
-    error: '#EF4444', // Red 500
-    overlay: 'rgba(0, 0, 0, 0.5)',
+    background: '#0A0E0B',
+    surface: '#141A16',
+    surfaceRaised: '#1C241F',
+    border: '#2B352E',
+    borderStrong: '#3D4A41',
+    text: '#F3F6F0',
+    textSecondary: '#AEB8B0',
+    textMuted: '#86928A',
+    primary: '#C8F04A',
+    onPrimary: '#0A0E0B',
+    primaryTint: 'rgba(200, 240, 74, 0.14)',
+    primaryText: '#D6F57A',
+    warning: '#F5B544',
+    warningTint: 'rgba(245, 181, 68, 0.14)',
+    error: '#FF7A7A',
+    errorTint: 'rgba(255, 122, 122, 0.14)',
+    success: '#5EE38F',
+    successTint: 'rgba(94, 227, 143, 0.14)',
+    info: '#8EC9FF',
+    overlay: 'rgba(0, 0, 0, 0.6)',
   },
-  spacing: {
-    xs: 4,
-    s: 8,
-    m: 16,
-    l: 24,
-    xl: 32,
-    xxl: 48,
+  // T2: bib colours live outside the UI palette and read at >3:1 on cards.
+  teamColors: ['#FF8A3D', '#5AB8FF', '#C58CFF', '#FF6FAE', '#2DD4BF', '#F0F0F0'],
+  fonts: {
+    display: 'BarlowCondensed_800ExtraBold',
+    body: 'Manrope_500Medium',
+    semibold: 'Manrope_600SemiBold',
+    bold: 'Manrope_700Bold',
+    heavy: 'Manrope_800ExtraBold',
   },
-  borderRadius: {
-    s: 8,
-    m: 12,
-    l: 16,
-    xl: 24,
-    full: 9999,
-  },
-  typography: {
-    h1: {
-      fontSize: 32,
-      fontWeight: '700',
-      lineHeight: 40,
-    },
-    h2: {
-      fontSize: 24,
-      fontWeight: '700',
-      lineHeight: 32,
-    },
-    h3: {
-      fontSize: 20,
-      fontWeight: '600',
-      lineHeight: 28,
-    },
-    body: {
-      fontSize: 16,
-      lineHeight: 24,
-    },
-    caption: {
-      fontSize: 14,
-      lineHeight: 20,
-    },
-    small: {
-      fontSize: 12,
-      lineHeight: 16,
-    },
-  },
-  shadows: {
-    small: {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 2,
-    },
-    medium: {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    large: {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.2,
-      shadowRadius: 16,
-      elevation: 8,
-    },
-  },
+  spacing: { xs: 4, s: 8, m: 16, l: 24, xl: 32, xxl: 48 },
+  borderRadius: { s: 10, m: 14, l: 20, xl: 28, full: 9999 },
+  // Minimum touch target for every tappable control.
+  hitTarget: 44,
 } as const;
+
+export const avatarPalette = ['#B8E986', '#9DE2D0', '#F2F2EE', '#FFC48C', '#A9C8FF', '#F5A3C7', '#D6C4FF'];
+
+export function teamColor(index: number): string {
+  return theme.teamColors[index % theme.teamColors.length];
+}

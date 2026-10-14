@@ -6,11 +6,11 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "footy",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#10b981"
+      "backgroundColor": "#0A0E0B"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -22,14 +22,18 @@
         "applinks:footyfriends.app"
       ],
       "infoPlist": {
-        "NSUserTrackingUsageDescription": "We use this to send you notifications about your matches."
+        "NSUserTrackingUsageDescription": "We use this to send you notifications about your matches.",
+        "CFBundleLocalizations": [
+          "en",
+          "ro"
+        ]
       }
     },
     "android": {
       "package": "com.footyfriends.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#10b981"
+        "backgroundColor": "#0A0E0B"
       },
       "intentFilters": [
         {
@@ -57,14 +61,16 @@
       "favicon": "./assets/favicon.png",
       "name": "Football Friends",
       "shortName": "Footy",
-      "description": "Organize your weekly 6-a-side football matches",
-      "themeColor": "#10b981",
-      "backgroundColor": "#0F172A"
+      "description": "Organise your weekly 6-a-side football matches",
+      "themeColor": "#0A0E0B",
+      "backgroundColor": "#0A0E0B"
     },
     "plugins": [
       "expo-router",
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      "expo-localization",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

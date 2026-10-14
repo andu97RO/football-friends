@@ -57,12 +57,22 @@ supabase functions deploy lock-and-generate
 
 ### File-Based Routing (expo-router)
 Routes are defined by the file structure in `app/`:
-- `app/(auth)/` - Authentication flows (login, callback, sign-up, reset-password)
-- `app/(tabs)/` - Main tab navigation (matches, profile, admin)
-- `app/match/[id]/` - Match detail screens (index, chat)
-- `app/teams/[id].tsx` - Teams view (post-lock)
-- `app/_layout.tsx` - Root layout with QueryClientProvider and auth listeners
+- `app/(auth)/` - Authentication flows (login with Apple/Google/magic link/password, sign-up, forgot-password, check-inbox, reset-password, callback)
+- `app/(tabs)/` - Main tab navigation: matches (feed across all groups), groups, profile. There is no Admin tab: organisers create matches with "+" on Matches and manage people in `app/group/[id].tsx`
+- `app/match/new.tsx` - New match (shares `components/MatchForm.tsx` with the Edit match sheet)
+- `app/match/[id]/` - Match detail (index), chat, result (organisers record score + attendance)
+- `app/teams/[id].tsx` - Teams view and editing (swap, undo, re-generate)
+- `app/group/[id].tsx` - Group page / Manage group (invite link, requests, members, ratings)
+- `app/join/[code].tsx` - Invite link landing (`/join/CODE`, `footy://join/CODE`)
+- `app/onboarding.tsx` - Name + self-rating for magic-link / OAuth sign-ups
+- `app/_layout.tsx` - Root layout: fonts, language, QueryClientProvider, auth listeners, Alert/Toast/Offline hosts
 - `app/index.tsx` - Entry point with auth check
+
+### Design system and copy
+- Tokens in `constants/theme.ts` (dark pitch palette, lime accent reserved for the one primary action, team colours outside the UI palette). Fonts: Barlow Condensed (display) + Manrope (body)
+- Shared components in `components/ui/` (Txt, Button, Card, Field/PasswordField, Sheet, ListRow, RatingPicker, Screen, states). Buttons use sentence case; touch targets are ≥44pt
+- All copy goes through `useT()` / `t()` from `lib/i18n.ts` with dictionaries in `lib/locales/en.ts` and `ro.ts` (Romanian plurals: `_one`/`_few`/`_other`). Add every new key to both files
+- Dialogs use `confirm()` / `showAlert()` from `lib/alert.ts`; transient feedback (with Undo) uses `showToast()` from `lib/toast.ts`
 
 ### State Management Pattern
 **Global State (Zustand)**:
@@ -71,7 +81,7 @@ Routes are defined by the file structure in `app/`:
 **Server State (@tanstack/react-query)**:
 - Use for all Supabase queries (matches, signups, teams, etc.)
 - Enables automatic caching, refetching, and optimistic updates
-- Example pattern in `app/(tabs)/matches.tsx`
+- Example pattern in `app/(tabs)/matches.tsx`; shared hooks in `lib/api.ts` (`useFeed`, `useProfile`, `callFunction`, `rpc`) and `lib/groups.ts`
 
 ### Supabase Client Setup
 - Main client: `lib/supabase.ts` (anon key, session stored in AsyncStorage)
@@ -93,18 +103,25 @@ Routes are defined by the file structure in `app/`:
 - Handled by `supabase/functions/cancel-signup`
 
 **Team Generation** (T-60 minutes before kickoff):
-- `supabase/functions/lock-and-generate`
-- Serpentine draft algorithm + local swaps to minimize rating variance
+- Organisers can run `supabase/functions/lock-and-generate` early; otherwise `private.auto_lock()` draws teams at T-60 the next time anyone loads matches (`sync_matches()` / `match_feed()`)
+- Serpentine draft by rating (`private.generate_teams`); `regenerate` reshuffles equal ratings; `swap_players` keeps team sizes
 - Creates `team`, `team_assignment`, and `rating_snapshot` records
-- Match status transitions: `scheduled` → `locked` → `completed`
+- Match status transitions: `scheduled` → `locked` → `completed` (set by `record_result`)
+- Weekly matches (`repeat_weekly`) roll to next week once they kick off (`private.roll_weekly`)
+
+**Ratings are private**: `group_membership.rating` is not selectable by clients. Admins read ratings via `group_members(g)`; everyone sees team averages via `team_summary(m)`
+
+**Groups are invite-only by default**: join with `group_action('join_code', value => code)`; only `club.listed` groups appear in search
 
 ### Database Schema (supabase/schema.sql)
 Key tables:
-- `profile` - User profiles with `display_name`, `rating_base` (1-5), `avatar_url`, `push_token`, `is_admin`
-- `club` - Clubs with `organizer_id`
-- `match` - Matches with `status`, `kick_off`, `signup_open_at`, `spots`, `teams_count`
-- `signup` - Signups with `state` (confirmed/waitlist/cancelled), `queue_pos`, `hold_expires_at`
-- `team` / `team_assignment` - Generated teams
+- `profile` - `display_name`, `rating_base` (0-5 self-rating from sign-up), `avatar_url`, `push_token`, `notify_*` preferences, `locale`, `onboarded`
+- `club` - Groups with `organizer_id`, `invite_code`, `listed`
+- `group_membership` - Role (owner/admin/member), status (pending/approved), group `rating` (0-5)
+- `match` - `status`, `kick_off`, `signup_open_at`, `spots`, `teams_count`, `venue_name`, `venue_url`, `fee_amount`, `fee_currency`, `payment_note`, `repeat_weekly`
+- `signup` - `state` (confirmed/waitlist/cancelled), `queue_pos`, `paid`, `attended`
+- `team` / `team_assignment` - Generated teams (`team.score` after the match)
+- `motm_vote` - Man of the Match votes (private; tallies via `match_summary(m)`)
 - `rating_snapshot` - Historical ratings per match
 - `audit_log` - Admin action trail
 
@@ -112,13 +129,10 @@ Key tables:
 
 ### Push Notifications
 - Setup: `lib/notifications.ts` - registers device token to `profile.push_token`
-- Expo Push Notifications (no OneSignal despite .env.example reference)
-- Notification handler setup in `app/_layout.tsx`
-- Edge Functions send notifications for:
-  - Signup confirmations/waitlist
-  - Automatic waitlist promotions ("You're In!")
-  - Team assignments
-  - Match reminders (T-24h, T-1h)
+- Expo Push Notifications, sent server-side by Edge Functions through `supabase/functions/_shared/common.ts` (`notify()` respects each player's `notify_*` switch and `locale`)
+- Notification handler and tap routing in `app/_layout.tsx`
+- Sent for: waitlist promotion (`cancel-signup`), teams picked (`lock-and-generate`), new match (`create-match`), chat (`notify-chat`)
+- Edge Functions share `_shared/common.ts`; deploy each function together with that file
 
 ### Deep Linking
 - Scheme: `footy://` (configured in app.json)
