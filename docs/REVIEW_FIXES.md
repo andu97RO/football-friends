@@ -1,6 +1,43 @@
 # PR 8 review fixes
 
-These fixes are prepared locally; production has not been changed.
+## Backend deployment — 15 October 2026
+
+Applied `20261004140627_fix_review_workflows.sql` to the live Supabase project
+through the migration API. The API recorded it as version `20261015083622`,
+name `fix_review_workflows`. This is the same SQL as the repository file, not
+an additional migration to run. Do not reapply it just because the timestamps
+differ; reconcile migration history before using automated database pushes.
+An optional history-ID normalization was rejected by automatic approval review;
+production migration-history metadata was left unchanged.
+
+Deployed with JWT verification enabled:
+
+- `delete-account` v2
+- `notify-teams` v1
+- `cancel-signup` v9
+- `lock-and-generate` v9
+- `create-match` v2
+- `notify-chat` v2
+
+Retrieved deployed source and confirmed each entrypoint and shared helper
+matches this repository. Live checks confirmed the outbox has RLS enabled,
+the cleanup and format-guard triggers exist, the old authenticated cleanup RPC
+is revoked, and the storage/outbox helpers are restricted to service access.
+An unauthenticated HTTP request to `notify-teams` returned 401.
+
+The isolated database suite passed 130 checks; Edge handler regression checks
+also passed. No real account was deleted and no test push was sent to players.
+A signed-in end-to-end test of deletion and delivery remains unverified.
+
+Security advisors retain the pre-existing
+[authenticated GraphQL-discovery](https://supabase.com/docs/guides/database/database-linter?lint=0027_pg_graphql_authenticated_table_exposed)
+and [leaked-password-protection](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)
+warnings. The new outbox has an informational
+[RLS-without-policies notice](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy):
+this is intentional because only the service role accesses it.
+
+This records the backend release only. Frontend hosting was not deployed in
+this operation; PR #11 also contains the web input-outline change.
 
 ## Rollout
 
