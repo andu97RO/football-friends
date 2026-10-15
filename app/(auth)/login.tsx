@@ -3,7 +3,8 @@ import { StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/lib/auth-store';
-import { getAuthCallbackUrl, isVerifiedSession } from '@/lib/auth-utils';
+import { isVerifiedSession } from '@/lib/auth-utils';
+import { requestEmailCode, emailAuthError } from '@/lib/email-auth';
 import { useT } from '@/lib/i18n';
 import { AuthShell, OrDivider, SocialButtons, TextLink } from '@/components/AuthShell';
 import { Button, Field, PasswordField, Txt } from '@/components/ui';
@@ -14,7 +15,7 @@ export default function LoginScreen() {
   const { setSession } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState<'password' | 'link' | null>(null);
+  const [loading, setLoading] = useState<'password' | 'code' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const validEmail = /\S+@\S+\.\S+/.test(email.trim());
@@ -43,23 +44,19 @@ export default function LoginScreen() {
     }
   };
 
-  // A1: passwordless — one tap from the email opens the app signed in.
-  const handleMagicLink = async () => {
+  // Email OTP also signs up first-time players.
+  const handleEmailCode = async () => {
     setError(null);
     if (!validEmail) {
       setError(t('auth.enterEmail'));
       return;
     }
-    setLoading('link');
+    setLoading('code');
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { emailRedirectTo: getAuthCallbackUrl(), shouldCreateUser: true },
-      });
-      if (error) throw error;
-      router.push({ pathname: '/(auth)/check-inbox', params: { kind: 'magic', email: email.trim() } });
-    } catch (err: any) {
-      setError(err.message);
+      await requestEmailCode(email.trim());
+      router.push({ pathname: '/(auth)/check-inbox', params: { kind: 'otp', email: email.trim() } });
+    } catch (err: unknown) {
+      setError(emailAuthError(err));
     } finally {
       setLoading(null);
     }
@@ -108,7 +105,7 @@ export default function LoginScreen() {
 
       <View style={{ gap: 10 }}>
         <Button title={t('auth.signIn')} onPress={handlePasswordLogin} loading={loading === 'password'} disabled={!!loading} testID="sign-in-button" />
-        <Button title={t('auth.emailMeLink')} variant="secondary" icon="mail-outline" onPress={handleMagicLink} loading={loading === 'link'} disabled={!!loading} testID="magic-link-button" />
+        <Button title={t('auth.emailMeCode')} variant="secondary" icon="mail-outline" onPress={handleEmailCode} loading={loading === 'code'} disabled={!!loading} testID="email-code-button" />
       </View>
 
       <TextLink prefix={t('auth.noAccount')} label={t('auth.createAccount')} onPress={() => router.push('/(auth)/sign-up')} testID="sign-up-link" />

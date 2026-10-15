@@ -10,7 +10,7 @@ import { AuthShell } from '@/components/AuthShell';
 import { Button, Field, LoadingState, RatingPicker, Txt } from '@/components/ui';
 
 /**
- * A3: players who arrive by magic link or Apple/Google have never been asked
+ * A3: players who arrive by email code or Apple/Google have never been asked
  * their name. Ask once, with the self-rating, before showing the app.
  */
 export default function OnboardingScreen() {
