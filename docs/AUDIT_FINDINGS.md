@@ -1,10 +1,48 @@
-# FootyFriends Audit — Findings & Fixes (2026-07-02)
+# FootyFriends Audit — Historical Findings & Current Status
 
-This document records a full audit of the app (backend/Supabase, frontend/app,
-build & tooling), independently verified against the actual code rather than
-taken on faith from `CLAUDE.md`. It lists what was actually broken, what was
-a real security gap, what was cleaned up, and what was investigated but found
-to be a false alarm or an intentional design choice.
+Original audit: 2 July 2026. Repository status reviewed on 15 October 2026
+against `main` at `0f65d86` (PRs #7–#10).
+
+Sections A–E preserve the original findings and fixes. Their file paths,
+permission assumptions, and rollout steps describe the pre-group app, not the
+current implementation. They are not a current security audit or evidence of
+production deployment. Section F reviews the optional legacy cleanup script.
+
+## Current status after group access and redesign
+
+- **Admin flows:** there is no longer `app/(tabs)/admin.tsx`. Group management
+  is in `app/group/[id].tsx`; match creation uses `app/match/new.tsx` and
+  `components/MatchForm.tsx`. Authorization uses approved group owner/admin
+  roles, not `profile.is_admin`; ratings are per-group, not global admin edits
+  through `update_player_rating_atomic`. The group migration revokes execution
+  of that old RPC from public, anon, authenticated, and service_role.
+- **Signup/cancellation:** the current Edge Functions call `match_action` with
+  the caller's JWT. The SQL implementation locks the match row, handles FCFS
+  and promotion, and writes the audit log in the same transaction.
+- **Team generation/swaps:** the original non-atomic follow-up is superseded.
+  Generation runs inside `private.match_action` / `private.generate_teams`;
+  swaps use `swap_players`. The database suite injects a snapshot failure and
+  asserts generation rolls back both teams and match status.
+- **Visibility/chat:** broad global profile/signup visibility is no longer
+  intentional. Group membership and verified email scope access; chat is
+  available to approved group members even without a match signup. The old
+  confirmed-participant-only policy is superseded by the chat migration.
+- **Capacity RPC:** `get_match_capacity` is no longer anon-readable; the group
+  migration restricts execution to authenticated callers and filters by group.
+- **Notifications:** logout still clears the push token. Current handlers use
+  the shared notification helper, preferences, and locale. Automatic team
+  notifications use an outbox with retries; see `docs/REVIEW_FIXES.md`.
+- **Tooling:** `.github/workflows/web.yml` now exists. It runs type-check, lint,
+  database tests, web export, and mocked browser tests. `test:functions` is a
+  separate command. The EAS project ID in `app.json` remains a placeholder.
+- **Schema:** root SQL baselines alone are not the current schema. Apply the
+  ordered group/chat/redesign/review migrations after their prerequisites.
+  Do not rerun legacy RLS/grant patches over them. See `AGENTS.md`,
+  `tests/database.mjs`, `docs/MIGRATION_REVIEW.md`, and `docs/REVIEW_FIXES.md`.
+
+This review inspected repository code and migrations. Live routine inventory,
+cron jobs, security advisors, Auth settings, and deployment state were not
+rechecked; dated claims below must not be treated as fresh live verification.
 
 ## A. Functional bugs (app was broken)
 
@@ -135,7 +173,10 @@ before signing out.
 - **No `.github/workflows/` CI, placeholder EAS project ID** — infra/deploy
   setup gaps, not code bugs. Flagged for awareness only.
 
-## Applying these changes
+## Historical rollout (original audit only)
+
+These steps are retained as history, not instructions for the current release.
+Use the ordered migrations and rollout notes linked above for current changes.
 
 1. `npm install` (pulls in the new devDependencies).
 2. Apply the four new SQL files to your Supabase project, in this order:
@@ -177,3 +218,43 @@ These were fixed in app + edge-function code (and baselines were synced):
    admin create-match policy, rating RPC, and cleanup (no
    `hold_expires_at`, queue_pos index). Existing projects still apply the
    four `fix_*.sql` / `cleanup.sql` migration files.
+
+## F. Legacy RPC cleanup — repository review, 15 October 2026
+
+`supabase/drop_legacy_unused_rpcs.sql` is an optional manual cleanup script for
+legacy databases. It is not in `supabase/migrations/`, so normal ordered
+migration application does not execute it. Its presence does not prove it has
+run against production.
+
+The original local note reported security advisors flagging legacy routines.
+The current repository has no app/lib/Edge Function/ordered-migration callers
+of the four drop targets: `join_match(uuid)`, `cancel_signup(uuid)`,
+`get_match_signups(uuid)`, and `backfill_waitlist_demotions()`. The last routine
+still has a historical definition in `supabase/backfill_waitlist_demotions.sql`.
+Current signup/cancellation/generation uses `match_action`, not `*_atomic`.
+
+The script now wraps cleanup in a transaction, avoids `CASCADE`, and guards the
+`auto_confirm_email()` grant revocation when that helper is absent. The group
+migration already removes `on_auth_user_created_confirm` from `auth.users`
+and conditionally revokes the helper's API grants. The old claim that this
+trigger remains active is superseded; do not restore it.
+
+Before execution, inspect the target project's routines, dependencies, jobs,
+and external/deployed callers. Repository usage searches cannot rule out
+live-only callers. `docs/RELEASE_STATUS.md` records underscore-named endpoints
+returning 410 on 24 September; it does not establish today's inventory, and
+this review does not recommend deleting endpoints without rechecking it.
+
+The old advisor exceptions are also stale: `get_match_capacity` is restricted
+to authenticated group access, and `update_player_rating_atomic` is revoked
+by the group migration. Re-run advisors against the actual target project to
+establish remaining findings. Leaked-password protection is an Auth setting,
+not something verified by this repository review.
+
+Local validation on 15 October used Node 22 and the pinned PGlite 0.3.14 in a
+temporary directory (the checkout lacked that dependency). The cleanup passed
+with absent routines, existing legacy routines, repeated execution, and revoked
+API grants. A dependent view prevented a drop without `CASCADE`, and rollback
+restored an earlier drop in the same transaction. All 130 existing database
+workflow checks also passed with cleanup inserted after the ordered migrations.
+These checks do not establish production deployment or absence of live callers.
