@@ -45,7 +45,7 @@ export function matchFormToRow(value: MatchFormValue) {
  * D2 D3 D4 M20: one form for creating and editing a match. Date rows share a
  * single component; spots, format, venue and fee are editable fields.
  */
-export function MatchForm({ value, onChange }: { value: MatchFormValue; onChange: (value: MatchFormValue) => void }) {
+export function MatchForm({ value, onChange, formatLocked = false }: { value: MatchFormValue; onChange: (value: MatchFormValue) => void; formatLocked?: boolean }) {
   const t = useT();
   const set = <K extends keyof MatchFormValue>(key: K, v: MatchFormValue[K]) => onChange({ ...value, [key]: v });
   const perTeam = Math.floor(value.spots / Math.max(1, value.teams));
@@ -100,9 +100,10 @@ export function MatchForm({ value, onChange }: { value: MatchFormValue; onChange
 
       <View style={{ gap: 8 }}>
         <Txt variant="label" tone="secondary">{t('newMatch.format')}</Txt>
-        <Stepper label={t('newMatch.spots')} value={value.spots} onChange={(v) => set('spots', v)} min={2} max={40} />
-        <Stepper label={t('newMatch.teams')} value={value.teams} onChange={(v) => set('teams', v)} min={2} max={6} />
+        <Stepper label={t('newMatch.spots')} value={value.spots} onChange={(v) => set('spots', v)} min={2} max={40} disabled={formatLocked} />
+        <Stepper label={t('newMatch.teams')} value={value.teams} onChange={(v) => set('teams', v)} min={2} max={6} disabled={formatLocked} />
         <Txt variant="caption" tone="secondary">{t('newMatch.formatSummary', { teams: value.teams, perTeam })}</Txt>
+        {formatLocked && <Txt variant="caption" tone="secondary">{t('editMatch.formatLocked')}</Txt>}
       </View>
 
       <ListGroup>

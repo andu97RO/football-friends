@@ -19,3 +19,16 @@ test('members do not get the New match button', async ({ page, backend }) => {
   await login(page);
   await expect(page.getByTestId('new-match-button')).toHaveCount(0);
 });
+
+
+test('the next match starts one week after the latest upcoming fixture', async ({ page, backend }) => {
+  const latest = backend.matches[1];
+  await login(page);
+  await page.getByTestId('new-match-button').click();
+  await expect(page.getByTestId('new-match-screen')).toBeVisible();
+  await page.getByTestId('create-match-button').click();
+  await expect.poll(() => backend.requests.some((r) => r.path.endsWith('/create-match'))).toBe(true);
+  const body = backend.requests.find((r) => r.path.endsWith('/create-match'))!.body;
+  expect(new Date(body.kick_off).getTime()).toBe(new Date(latest.kick_off).getTime() + 7 * 86400000);
+  expect(new Date(body.signup_open_at).getTime()).toBe(new Date(latest.signup_open_at).getTime() + 7 * 86400000);
+});

@@ -44,6 +44,7 @@ export default function MatchDetailScreen() {
     queryFn: async () => {
       // Draws teams at T-60 and rolls weekly matches before we read the match.
       await rpc('sync_matches').catch(() => undefined);
+      void callFunction('notify-teams', {}).catch((error) => console.warn('Team notifications pending', error));
       const { data, error } = await supabase.from('match').select('*, club(name)').eq('id', id).single();
       if (error) throw error;
       return { ...data, fee_amount: Number(data.fee_amount) } as Match & { club: { name: string } };

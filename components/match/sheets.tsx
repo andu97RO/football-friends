@@ -124,7 +124,7 @@ function OpenEditMatchSheet({ visible, onClose, match }: { visible: boolean; onC
         </>
       }
     >
-      <MatchForm value={form} onChange={setForm} />
+      <MatchForm value={form} onChange={setForm} formatLocked={match.status !== 'scheduled'} />
     </Sheet>
   );
 }

@@ -90,3 +90,38 @@ test('chat denies users outside the group', async ({ page, backend }) => {
   await page.goto('/match/match1/chat');
   await expect(page.getByText('Chat is for group members', { exact: true })).toBeVisible();
 });
+
+
+test('locked match editing keeps the drawn format fixed', async ({ page, backend }) => {
+  backend.matches[0].status = 'locked';
+  await login(page);
+  await page.goto('/match/match1');
+  await page.getByTestId('organiser-menu').click();
+  await page.getByTestId('organiser-edit').click();
+  const sheet = page.getByTestId('edit-match-sheet');
+  await expect(sheet.getByText('The format is fixed once teams have been drawn.')).toBeVisible();
+  await expect(sheet.getByRole('button', { name: 'More Teams', exact: true })).toBeDisabled();
+  await expect(sheet.getByRole('button', { name: 'More Spots', exact: true })).toBeDisabled();
+});
+
+test('reopening a result preserves the saved score and attendance', async ({ page, backend }) => {
+  await login(page);
+  await page.goto('/match/match3');
+  const openResult = async () => {
+    await page.getByTestId('organiser-menu').click();
+    await page.getByTestId('organiser-result').click();
+    await expect(page.getByTestId('record-result-screen')).toBeVisible();
+  };
+  await openResult();
+  await page.getByRole('button', { name: 'More Team A' }).click();
+  await page.getByRole('switch', { name: 'Radu Stan' }).click();
+  await page.getByTestId('save-result').click();
+  await expect(page.getByTestId('result-card')).toBeVisible();
+  await openResult();
+  await page.getByRole('button', { name: 'More Team B' }).click();
+  await page.getByTestId('save-result').click();
+  await expect.poll(() => backend.requests.filter((r) => r.path.endsWith('/record_result')).length).toBe(2);
+  const saved = backend.requests.filter((r) => r.path.endsWith('/record_result'))[1].body;
+  expect(saved.scores).toEqual({ teamA: 6, teamB: 4 });
+  expect(saved.absent).toEqual(['p3']);
+});

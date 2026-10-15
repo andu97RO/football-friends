@@ -206,6 +206,7 @@ const en: Record<string, string> = {
 
   'editMatch.title': 'Edit match',
   'editMatch.saved': 'Match updated.',
+  'editMatch.formatLocked': 'The format is fixed once teams have been drawn.',
   'editMatch.errorCapacity': 'More players are confirmed than that. Ask some to leave first, or keep more spots.',
 
   'newMatch.title': 'New match',

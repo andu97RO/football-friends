@@ -56,6 +56,8 @@ export function useFeed() {
     refetchInterval: 30000,
     queryFn: async () => {
       const rows = await rpc<FeedMatch[]>('match_feed');
+      // Automatic draws enqueue pushes transactionally; failed delivery stays queued.
+      void callFunction('notify-teams', {}).catch((error) => console.warn('Team notifications pending', error));
       return rows.map((m) => ({ ...m, fee_amount: Number(m.fee_amount) }));
     },
   });
@@ -71,4 +73,4 @@ export function usePlayerStats(groupId: string | undefined) {
 }
 
 /** Query keys that depend on a player's match signups. */
-export const MATCH_KEYS = ['feed', 'match', 'signups', 'teams', 'team-summary', 'match-summary', 'player-stats'];
+export const MATCH_KEYS = ['feed', 'match', 'signups', 'teams', 'team-summary', 'match-summary', 'player-stats', 'result-form'];

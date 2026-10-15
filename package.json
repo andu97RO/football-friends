@@ -12,7 +12,8 @@
     "type-check": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:db": "node tests/database.mjs"
+    "test:db": "node tests/database.mjs",
+    "test:functions": "node tests/review-functions.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/barlow-condensed": "^0.4.1",

@@ -13,7 +13,7 @@ await db.exec(`
  grant execute on function auth.uid() to anon,authenticated;
  create table storage.buckets(id text primary key,file_size_limit bigint,allowed_mime_types text[]);
  insert into storage.buckets(id) values('avatars');
- create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text);
+ create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text,owner_id text,owner uuid references auth.users(id));
  alter table storage.objects enable row level security;
  grant select,insert,update,delete on storage.objects to anon,authenticated;
  create function storage.foldername(text) returns text[] language sql as $$select string_to_array($1,'/')$$;
@@ -195,6 +195,11 @@ eq(await scalar('select count(*)::int from group_members($1) where user_id=$2',[
   const soon=await scalar("insert into match(club_id,kick_off,signup_open_at,spots,teams_count) values($1,now()+interval '2 hours',now()-interval '1 day',4,2) returning id",[g1]);
   await match('join',soon);
   await admin(); await db.query("update match set kick_off=now()+interval '30 minutes' where id=$1",[soon]);
+  await db.exec(`create function public.fail_outbox() returns trigger language plpgsql as $$begin raise exception 'injected outbox failure'; end$$; create trigger outbox_failure before insert on team_notification_outbox for each row execute function fail_outbox();`);
+  await as(ids[2]); await db.query('select sync_matches()');
+  eq(await scalar('select status from match where id=$1',[soon]),'scheduled');
+  eq(await scalar('select count(*)::int from team where match_id=$1',[soon]),0);
+  await admin(); await db.exec('drop trigger outbox_failure on team_notification_outbox');
   await as(ids[2]); await db.query('select sync_matches()');
   eq(await scalar('select status from match where id=$1',[soon]),'locked');
   eq(await scalar('select count(*)::int from team where match_id=$1',[soon]),2);
@@ -211,17 +216,69 @@ eq(await scalar('select count(*)::int from group_members($1) where user_id=$2',[
   await db.query('select complete_onboarding($1,$2)',['Other',1]);
   await admin(); eq(await scalar('select display_name||rating_base from profile where user_id=$1',[fresh]),'Nick4');
 }
-// Deleting an account hands groups on, removes empty groups and frees the auth row.
+// Membership removal cleans up upcoming locked squads; re-generation remains valid.
 {
-  await as(ids[1]); await db.query('select delete_account_data()');
+  await as(ids[3]); await group('join_code',null,null,code);
+  await as(ids[0]); const locked = await createMatch(g1);
+  await match('join',locked); await as(ids[3]); await match('join',locked);
+  await as(ids[0]); await match('generate',locked);
+  await deny('update match set teams_count=3,spots=6 where id=$1',[locked]);
+  await deny('update match set spots=6 where id=$1',[locked]);
+  await db.query("update match set venue_name='New pitch' where id=$1",[locked]); checks++;
+  await as(ids[3]); await group('leave',g1);
+  await as(ids[0]);
+  eq(await scalar('select state from signup where match_id=$1 and user_id=$2',[locked,ids[3]]),'cancelled');
+  eq(await scalar('select count(*)::int from team_assignment ta join team t on t.id=ta.team_id where t.match_id=$1 and ta.user_id=$2',[locked,ids[3]]),0);
+  eq(await scalar('select count(*)::int from rating_snapshot where match_id=$1 and user_id=$2',[locked,ids[3]]),0);
+  await match('regenerate',locked); checks++;
+  await as(ids[3]); await group('join_code',null,null,code);
+  // The owner creates a second fixture to exercise administrator removal.
+  await as(ids[0]); const adminRemoved = await createMatch(g1); await match('join',adminRemoved);
+  await as(ids[3]); await match('join',adminRemoved);
+  await as(ids[0]); await match('generate',adminRemoved); await group('remove',g1,ids[3]);
+  eq(await scalar('select state from signup where match_id=$1 and user_id=$2',[adminRemoved,ids[3]]),'cancelled');
+  await match('regenerate',adminRemoved); checks++;
+}
+// Outbox is private, claimed once, retryable after a failed delivery, and atomic with generation.
+{
+  await as(ids[0]); await deny('select * from team_notification_outbox');
+  await deny('select * from claim_team_notifications()');
+  await deny('select * from account_storage_objects($1)',[ids[0]]);
   await admin();
+  const count = await scalar('select count(*)::int from team_notification_outbox'); eq(count,1);
+  await db.exec('set role service_role');
+  const events = (await db.query('select * from claim_team_notifications()')).rows;
+  eq(events.length,1); eq(events[0].user_ids,[ids[0]]);
+  eq((await db.query('select * from claim_team_notifications()')).rows.length,0);
+  await db.query('update team_notification_outbox set claimed_until=null where match_id=$1',[events[0].match_id]);
+  const retry = (await db.query('select * from claim_team_notifications()')).rows[0];
+  assert.notEqual(retry.claim_id,events[0].claim_id); checks++;
+  await db.query('delete from team_notification_outbox where match_id=$1 and claim_id=$2',[events[0].match_id,events[0].claim_id]);
+  eq(await scalar('select count(*)::int from team_notification_outbox'),1);
+  await db.query('delete from team_notification_outbox where match_id=$1 and claim_id=$2',[retry.match_id,retry.claim_id]);
+  eq(await scalar('select count(*)::int from team_notification_outbox'),0);
+  await as(ids[0]); await db.query('select sync_matches()');
+  await admin(); eq(await scalar('select count(*)::int from team_notification_outbox'),0);
+}
+// Deleting an account hands groups on atomically with the auth row. Failure rolls everything back.
+{
+  await as(ids[1]); await deny('select delete_account_data()');
+  await admin();
+  await db.query("insert into storage.objects(bucket_id,name,owner) values('avatars',$1,$2)",[ids[1]+'/old.png',ids[1]]);
+  await deny('delete from auth.users where id=$1',[ids[1]]);
+  eq(await scalar('select count(*)::int from club where id=$1',[g2]),1);
+  eq(await scalar('select count(*)::int from group_membership where user_id=$1',[ids[1]]),2);
+  await db.exec('set role service_role');
+  eq((await db.query('select * from account_storage_objects($1)',[ids[1]])).rows.map(o=>o.name),[ids[1]+'/old.png']);
+  await admin(); await db.query('delete from storage.objects where owner=$1',[ids[1]]);
+  await db.query('delete from auth.users where id=$1',[ids[1]]); checks++;
   eq(await scalar('select count(*)::int from club where id=$1',[g2]),0);
   eq(await scalar('select count(*)::int from group_membership where user_id=$1',[ids[1]]),0);
-  await db.query('delete from auth.users where id=$1',[ids[1]]); checks++;
-  await as(ids[2]); await db.query('select delete_account_data()');
-  await admin(); await db.query('delete from auth.users where id=$1',[ids[2]]); checks++;
-  await as(ids[0]); await db.query('select delete_account_data()');
-  await admin(); eq(await scalar('select count(*)::int from club where id=$1',[g1]),0);
+  await db.query('delete from auth.users where id=$1',[ids[0]]); checks++;
+  eq(await scalar('select organizer_id from club where id=$1',[g1]),ids[2]);
+  eq(await scalar('select role from group_membership where club_id=$1 and user_id=$2',[g1,ids[2]]),'owner');
+  await db.query('delete from auth.users where id=$1',[ids[2]]); checks++;
+  eq(await scalar('select count(*)::int from club where id=$1',[g1]),0);
 }
 await as(ids[0]);await db.query('delete from match where id=$1',[m1]);
 eq(await scalar('select count(*)::int from team where match_id=$1',[m1]),0);
