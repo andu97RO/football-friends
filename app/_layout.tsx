@@ -1,6 +1,7 @@
 // Import polyfills first before any other imports
 import '@/lib/polyfills';
 import 'react-native-url-polyfill/auto';
+import '../global.css';
 
 import { router, Stack } from 'expo-router';
 import * as Notifications from 'expo-notifications';
