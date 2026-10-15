@@ -67,10 +67,10 @@ test('password login and hard refresh preserve session', async ({ page, backend 
   await expect(page.getByTestId('matches-screen')).toBeVisible();
 });
 
-test('A1: sign-in offers Apple, Google and an emailed link', async ({ page, backend }) => {
+test('A1: sign-in offers Google and an emailed link while Apple is hidden', async ({ page, backend }) => {
   await page.goto('/login');
   await expect(page.getByTestId('google-sign-in')).toBeVisible();
-  await expect(page.getByTestId('apple-sign-in')).toBeVisible();
+  await expect(page.getByTestId('apple-sign-in')).toHaveCount(0);
   await page.getByTestId('email-input').fill('player@example.com');
   await page.getByTestId('magic-link-button').click();
   await expect(page.getByTestId('check-inbox-screen')).toBeVisible();
@@ -80,6 +80,8 @@ test('A1: sign-in offers Apple, Google and an emailed link', async ({ page, back
 
 test('A3 A4 A5: sign-up asks for a name, one password and a described rating', async ({ page, backend }) => {
   await page.goto('/sign-up');
+  await expect(page.getByTestId('google-sign-in')).toBeVisible();
+  await expect(page.getByTestId('apple-sign-in')).toHaveCount(0);
   await expect(page.getByPlaceholder('Confirm your password')).toHaveCount(0);
   await page.getByTestId('name-input').fill('Nick');
   await page.getByTestId('email-input').fill('new@example.com');

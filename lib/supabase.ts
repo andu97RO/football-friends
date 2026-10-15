@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, navigatorLock } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { useAuthStore } from './auth-store';
 
 const AUTH_LOCK_TIMEOUT_MS = 10_000;
 
@@ -11,6 +12,15 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || Constants.e
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
+}
+
+// Capture recovery intent before Expo normalizes the initial browser URL and
+// the SDK consumes the token fragment. The callback can then use the session.
+if (Platform.OS === 'web' && typeof window !== 'undefined') {
+  const url = new URL(window.location.href);
+  if (url.searchParams.get('type') === 'recovery' || new URLSearchParams(url.hash.slice(1)).get('type') === 'recovery') {
+    useAuthStore.getState().setRecovery(true);
+  }
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

@@ -6,6 +6,9 @@ import { useT } from '@/lib/i18n';
 import { signInWithProvider, OAuthProvider } from '@/lib/oauth';
 import { Button, Screen, ScreenHeader, Txt } from '@/components/ui';
 
+// Enable once the Apple provider is configured. Keep the button and OAuth flow ready.
+const APPLE_SIGN_IN_ENABLED = false;
+
 /** Auth pages: back button, big title, and fields that stay clear of the keyboard (A7). */
 export function AuthShell({
   title,
@@ -63,7 +66,7 @@ export function SocialButtons({ onError }: { onError: (message: string) => void 
   };
   return (
     <View style={{ gap: 10 }}>
-      {Platform.OS !== 'android' && (
+      {APPLE_SIGN_IN_ENABLED && Platform.OS !== 'android' && (
         <Button title={t('auth.continueApple')} icon="logo-apple" variant="secondary" loading={busy === 'apple'} disabled={!!busy} onPress={() => start('apple')} testID="apple-sign-in" />
       )}
       <Button title={t('auth.continueGoogle')} icon="logo-google" variant="secondary" loading={busy === 'google'} disabled={!!busy} onPress={() => start('google')} testID="google-sign-in" />
