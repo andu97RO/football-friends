@@ -221,6 +221,7 @@ const ro: Record<string, string> = {
 
   'editMatch.title': 'Editează meciul',
   'editMatch.saved': 'Meciul a fost actualizat.',
+  'editMatch.formatLocked': 'Formatul rămâne fix după ce au fost generate echipele.',
   'editMatch.errorCapacity': 'Sunt mai mulți jucători confirmați de atât. Roagă câțiva să se retragă sau păstrează mai multe locuri.',
 
   'newMatch.title': 'Meci nou',

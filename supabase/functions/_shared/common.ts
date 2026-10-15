@@ -63,7 +63,8 @@ export async function notify(
   userIds: string[],
   pref: Pref,
   build: (locale: Locale) => { title: string; body: string },
-  data: Record<string, unknown> = {}
+  data: Record<string, unknown> = {},
+  strict = false
 ): Promise<number> {
   const ids = [...new Set(userIds)];
   if (!ids.length) return 0;
@@ -72,7 +73,10 @@ export async function notify(
     .select(`user_id,push_token,locale,${pref}`)
     .in('user_id', ids)
     .not('push_token', 'is', null);
-  if (error || !rows) return 0;
+  if (error || !rows) {
+    if (strict) throw error ?? new Error('Could not load notification recipients');
+    return 0;
+  }
   const messages = rows
     .filter((row: Record<string, any>) => row[pref] !== false && row.push_token)
     .map((row: Record<string, any>) => ({
@@ -84,11 +88,22 @@ export async function notify(
       ...build(row.locale === 'ro' ? 'ro' : 'en'),
     }));
   for (let i = 0; i < messages.length; i += 100) {
-    await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify(messages.slice(i, i + 100)),
-    }).catch((error) => console.error('Push send failed', error));
+    const send = async () => {
+      const response = await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(messages.slice(i, i + 100)),
+      });
+      if (!response.ok) throw new Error(`Push send failed: ${response.status}`);
+      if (strict) {
+        const payload = await response.json();
+        if (payload.errors?.length || payload.data?.some((ticket: { status: string; details?: { error?: string } }) => ticket.status === 'error' && ticket.details?.error !== 'DeviceNotRegistered')) {
+          throw new Error('Expo rejected team notifications');
+        }
+      }
+    };
+    if (strict) await send();
+    else await send().catch((error) => console.error('Push send failed', error));
   }
   return messages.length;
 }

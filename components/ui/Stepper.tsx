@@ -12,6 +12,7 @@ export function Stepper({
   min,
   max,
   step = 1,
+  disabled = false,
   format,
 }: {
   label: string;
@@ -20,15 +21,16 @@ export function Stepper({
   min: number;
   max: number;
   step?: number;
+  disabled?: boolean;
   format?: (value: number) => string;
 }) {
   const t = useT();
   return (
     <View style={styles.row}>
       <Txt variant="bodyStrong" style={{ flex: 1 }}>{label}</Txt>
-      <IconButton icon="remove" accessibilityLabel={t('common.decrease', { label })} disabled={value - step < min} onPress={() => onChange(value - step)} />
+      <IconButton icon="remove" accessibilityLabel={t('common.decrease', { label })} disabled={disabled || value - step < min} onPress={() => onChange(value - step)} />
       <Txt variant="number" style={styles.value} accessibilityLiveRegion="polite">{format ? format(value) : value}</Txt>
-      <IconButton icon="add" accessibilityLabel={t('common.increase', { label })} disabled={value + step > max} onPress={() => onChange(value + step)} />
+      <IconButton icon="add" accessibilityLabel={t('common.increase', { label })} disabled={disabled || value + step > max} onPress={() => onChange(value + step)} />
     </View>
   );
 }

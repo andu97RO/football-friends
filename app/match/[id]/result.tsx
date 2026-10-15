@@ -55,8 +55,8 @@ export default function RecordResultScreen() {
 
   const save = useMutation({
     mutationFn: () => rpc('record_result', { m: id, scores, absent: [...absent] }),
-    onSuccess: () => {
-      void invalidate();
+    onSuccess: async () => {
+      await invalidate();
       showToast(t('result.saved'));
       router.back();
     },

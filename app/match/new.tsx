@@ -54,8 +54,8 @@ export default function NewMatchScreen() {
     setPrefilledFor(selected.club_id);
     if (!latest) return;
     const week = 7 * 24 * 60 * 60 * 1000;
-    let kick = new Date(latest.kick_off).getTime();
-    let open = new Date(latest.signup_open_at).getTime();
+    let kick = new Date(latest.kick_off).getTime() + week;
+    let open = new Date(latest.signup_open_at).getTime() + week;
     while (kick <= Date.now()) {
       kick += week;
       open += week;
