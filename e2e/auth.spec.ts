@@ -1,4 +1,63 @@
-import { test, expect, login } from './fixtures';
+import { test, expect, login, user } from './fixtures';
+
+function recoveryUrl() {
+  const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const token = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 3600 })}.${Buffer.from('test-signature').toString('base64url')}`;
+  return `/callback?type=recovery#${new URLSearchParams({ access_token: token, refresh_token: 'recovery-refresh-token', token_type: 'bearer', expires_in: '3600', type: 'recovery' })}`;
+}
+
+test('emailed recovery link saves the new password and opens matches', async ({ page, backend }) => {
+  await page.goto(recoveryUrl());
+  await expect(page.getByTestId('reset-password-screen')).toBeVisible();
+  await page.getByTestId('new-password-input').fill('new-password123');
+  await page.getByTestId('update-password-button').click();
+  await expect(page.getByTestId('matches-screen')).toBeVisible();
+  expect(backend.requests.filter((r) => r.path.endsWith('/user') && r.body.password)).toEqual([
+    expect.objectContaining({ path: '/auth/v1/user', body: expect.objectContaining({ password: 'new-password123' }) }),
+  ]);
+});
+
+test('a busy session stops the reset spinner and can be retried safely', async ({ page, backend }) => {
+  await page.goto(recoveryUrl());
+  await expect(page.getByTestId('reset-password-screen')).toBeVisible();
+  // Model another tab holding Supabase's cross-tab session lock.
+  await page.evaluate(async () => {
+    const key = Object.keys(localStorage).find((name) => name.endsWith('-auth-token'))!;
+    await new Promise<void>((held) => {
+      void navigator.locks.request(`lock:${key}`, () => new Promise<void>((release) => {
+        (window as any).releaseAuthLock = release;
+        held();
+      }));
+    });
+  });
+  await page.getByTestId('new-password-input').fill('new-password123');
+  await page.getByTestId('update-password-button').click();
+  await expect(page.getByRole('alert').filter({ hasText: 'Another tab is busy' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('update-password-button')).toBeEnabled();
+  expect(backend.requests.filter((r) => r.body.password)).toHaveLength(0);
+  await page.evaluate(() => (window as any).releaseAuthLock());
+  await page.getByTestId('update-password-button').click();
+  await expect(page.getByTestId('matches-screen')).toBeVisible();
+  expect(backend.requests.filter((r) => r.body.password)).toHaveLength(1);
+});
+
+test('password update errors stop the spinner and allow a corrected password', async ({ page, backend }) => {
+  await page.goto(recoveryUrl());
+  await expect(page.getByTestId('reset-password-screen')).toBeVisible();
+  await page.route('**/auth/v1/user', async (route) => {
+    if (route.request().method() !== 'PUT') return route.fallback();
+    await route.fulfill({ status: 422, json: { code: 'same_password', msg: 'New password should be different from the old password.' } });
+  });
+  await page.getByTestId('new-password-input').fill('password123');
+  await page.getByTestId('update-password-button').click();
+  await expect(page.getByRole('alert').filter({ hasText: 'New password should be different' })).toBeVisible();
+  await expect(page.getByTestId('update-password-button')).toBeEnabled();
+  await page.unroute('**/auth/v1/user');
+  await page.getByTestId('new-password-input').fill('new-password123');
+  await page.getByTestId('update-password-button').click();
+  await expect(page.getByTestId('matches-screen')).toBeVisible();
+  expect(backend.requests.some((r) => r.body.password === 'new-password123')).toBe(true);
+});
 
 test('password login and hard refresh preserve session', async ({ page, backend }) => {
   expect(backend).toBeTruthy();

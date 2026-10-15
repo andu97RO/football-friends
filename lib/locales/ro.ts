@@ -72,6 +72,8 @@ const ro: Record<string, string> = {
   'auth.oauthFailed': 'Conectarea a fost anulată sau a eșuat.',
   'auth.providerDisabled': 'Această opțiune de conectare nu e încă activă. Folosește emailul.',
   'auth.forgotTitle': 'Ai uitat parola',
+  'auth.sessionBusy': 'O altă filă folosește sesiunea ta. Închide celelalte file Football Friends, apoi încearcă din nou.',
+  'auth.resetFailed': 'Parola nu a putut fi actualizată. Încearcă din nou.',
   'auth.forgotSubtitle': 'Introdu emailul și îți trimitem un link pentru o parolă nouă.',
   'auth.sendResetLink': 'Trimite linkul',
   'auth.checkInbox': 'Verifică inboxul',

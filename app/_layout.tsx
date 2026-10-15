@@ -55,6 +55,9 @@ export default function RootLayout() {
     // Load session on app start
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+    }).catch((error) => {
+      console.error('Could not restore authentication session:', error);
+      setSession(null);
     });
 
     // Listen for auth changes globally

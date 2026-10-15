@@ -68,6 +68,8 @@ const en: Record<string, string> = {
   'auth.oauthFailed': 'Sign-in was cancelled or failed.',
   'auth.providerDisabled': "This sign-in option isn't switched on yet. Use your email instead.",
   'auth.forgotTitle': 'Forgot password',
+  'auth.sessionBusy': 'Another tab is busy with your sign-in session. Close other Football Friends tabs, then try again.',
+  'auth.resetFailed': 'Could not update your password. Please try again.',
   'auth.forgotSubtitle': "Enter your email and we'll send you a link to set a new password.",
   'auth.sendResetLink': 'Send reset link',
   'auth.checkInbox': 'Check your inbox',
