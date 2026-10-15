@@ -108,6 +108,7 @@ export const test = base.extend<{ backend: Backend }>({
       const respond = (rows: Row[]) => route.fulfill({ json: single ? rows[0] ?? null : rows });
 
       // Auth
+      if (path.includes('/auth/v1/verify')) return route.fulfill({ json: session });
       if (path.includes('/auth/v1/token')) return route.fulfill({ json: session });
       if (path.includes('/auth/v1/user')) return route.fulfill({ json: method === 'PUT' ? { ...user } : user });
       if (path.includes('/auth/v1/logout')) return route.fulfill({ json: {} });
@@ -149,6 +150,10 @@ export const test = base.extend<{ backend: Backend }>({
         const name = path.split('/').pop();
         switch (name) {
           case 'initialize_profile':
+            if (!state.profiles.some((p) => p.user_id === user.id)) {
+              state.profiles.unshift({ user_id: user.id, display_name: 'New player', avatar_url: null, created_at: new Date().toISOString(), onboarded: false, locale: 'en' });
+            }
+            return route.fulfill({ json: null });
           case 'sync_matches':
             return route.fulfill({ json: null });
           case 'my_groups':

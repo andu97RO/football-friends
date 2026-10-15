@@ -11,7 +11,7 @@ import { useProfile } from '@/lib/api';
 import { useGroups } from '@/lib/groups';
 import { useT } from '@/lib/i18n';
 import { loadPendingInvite, usePendingInvite } from '@/lib/invite';
-import { LoadingState, Txt } from '@/components/ui';
+import { ErrorState, LoadingState, Screen, Txt } from '@/components/ui';
 
 const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
   matches: 'football-outline',
@@ -76,6 +76,9 @@ export default function TabsLayout() {
   // in that window would bounce every hard refresh and deep link on web.
   if (session === undefined) return <LoadingState />;
   if (!isAuthed) return <Redirect href="/(auth)/login" />;
+  // Resolve onboarding before following a saved invitation for a new account.
+  if (profile.isPending) return <LoadingState />;
+  if (profile.error) return <Screen><ErrorState error={profile.error} onRetry={() => profile.refetch()} /></Screen>;
   if (profile.data && profile.data.onboarded === false) return <Redirect href="/onboarding" />;
   if (pendingInvite) return <Redirect href={{ pathname: '/join/[code]', params: { code: pendingInvite } }} />;
 

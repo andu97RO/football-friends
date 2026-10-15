@@ -67,15 +67,20 @@ test('password login and hard refresh preserve session', async ({ page, backend 
   await expect(page.getByTestId('matches-screen')).toBeVisible();
 });
 
-test('A1: sign-in offers Google and an emailed link while Apple is hidden', async ({ page, backend }) => {
+test('A1: sign-in offers Google and an emailed code while Apple is hidden', async ({ page, backend }) => {
   await page.goto('/login');
   await expect(page.getByTestId('google-sign-in')).toBeVisible();
   await expect(page.getByTestId('apple-sign-in')).toHaveCount(0);
   await page.getByTestId('email-input').fill('player@example.com');
-  await page.getByTestId('magic-link-button').click();
+  await page.getByTestId('email-code-button').click();
   await expect(page.getByTestId('check-inbox-screen')).toBeVisible();
-  await expect(page.getByText(/sign-in link to player@example.com/)).toBeVisible();
-  expect(backend.requests.some((r) => r.path.endsWith('/otp'))).toBe(true);
+  await expect(page.getByText(/sign-in code to player@example.com/)).toBeVisible();
+  expect(backend.requests.find((r) => r.path.endsWith('/otp'))?.body).toMatchObject({ email: 'player@example.com', create_user: true });
+  await expect(page.getByTestId('resend-email')).toBeDisabled();
+  await page.getByTestId('email-code-input').fill('123456');
+  await page.getByTestId('verify-code-button').click();
+  await expect(page.getByTestId('matches-screen')).toBeVisible();
+  expect(backend.requests.find((r) => r.path.endsWith('/verify'))?.body).toMatchObject({ email: 'player@example.com', token: '123456', type: 'email' });
 });
 
 test('A3 A4 A5: sign-up asks for a name, one password and a described rating', async ({ page, backend }) => {
@@ -134,4 +139,60 @@ test('A3: players without a name are onboarded once', async ({ page, backend }) 
   await page.getByTestId('onboarding-continue').click();
   await expect(page).toHaveURL(/matches/);
   expect(backend.requests.find((r) => r.path.endsWith('/complete_onboarding'))?.body).toEqual({ name: 'Nick', rating: 2 });
+});
+
+test('email OTP creates a missing profile and sends a new player through onboarding and the saved invite', async ({ page, backend }) => {
+  backend.profiles = backend.profiles.filter((p) => p.user_id !== user.id);
+  backend.memberships = backend.memberships.filter((m) => m.user_id !== user.id);
+  await page.goto('/join/AB12CD34');
+  await expect(page.getByTestId('login-screen')).toBeVisible();
+  await page.getByTestId('email-input').fill('new@example.com');
+  await page.getByTestId('email-code-button').click();
+  await page.getByTestId('email-code-input').fill('123456');
+  await page.getByTestId('verify-code-button').click();
+  await expect(page.getByTestId('onboarding-screen')).toBeVisible();
+  expect(backend.requests.some((r) => r.path.endsWith('/initialize_profile'))).toBe(true);
+  await page.getByTestId('name-input').fill('New player');
+  await page.getByTestId('rating-3').click();
+  await page.getByTestId('onboarding-continue').click();
+  await expect(page.getByTestId('join-screen')).toBeVisible();
+  await page.getByTestId('accept-invite').click();
+  await expect(page.getByTestId('matches-screen')).toBeVisible();
+  expect(backend.memberships.some((m) => m.user_id === user.id && m.club_id === 'club1')).toBe(true);
+});
+
+test('invalid or expired email codes keep the form available for retry', async ({ page, backend }) => {
+  await page.route('**/auth/v1/verify', (route) => route.fulfill({ status: 403, headers: { 'x-supabase-api-version': '2024-01-01', 'access-control-expose-headers': 'X-Supabase-Api-Version' }, json: { code: 'otp_expired', msg: 'Token has expired or is invalid' } }));
+  await page.goto('/check-inbox?kind=otp&email=player%40example.com');
+  await page.getByTestId('email-code-input').fill('12');
+  await page.getByTestId('verify-code-button').click();
+  await expect(page.getByTestId('auth-error')).toContainText('6–10 digit');
+  expect(backend.requests.filter((r) => r.path.endsWith('/verify'))).toHaveLength(0);
+  await page.getByTestId('email-code-input').fill('123456');
+  await page.getByTestId('verify-code-button').click();
+  await expect(page.getByTestId('auth-error')).toContainText('invalid or has expired');
+  await expect(page.getByTestId('verify-code-button')).toBeEnabled();
+  await page.unroute('**/auth/v1/verify');
+  await page.getByTestId('email-code-input').fill('654321');
+  await page.getByTestId('verify-code-button').click();
+  await expect(page.getByTestId('matches-screen')).toBeVisible();
+});
+
+test('email quota errors suggest Google without opening the code screen', async ({ page }) => {
+  await page.route('**/auth/v1/otp*', (route) => route.fulfill({ status: 429, headers: { 'x-supabase-api-version': '2024-01-01', 'access-control-expose-headers': 'X-Supabase-Api-Version' }, json: { code: 'over_email_send_rate_limit', msg: 'Email rate limit exceeded' } }));
+  await page.goto('/login');
+  await page.getByTestId('email-input').fill('player@example.com');
+  await page.getByTestId('email-code-button').click();
+  await expect(page.getByTestId('auth-error')).toContainText('Try Google sign-in');
+  await expect(page.getByTestId('email-code-button')).toBeEnabled();
+});
+
+test('email codes can be resent after the cooldown with account creation enabled', async ({ page, backend }) => {
+  await page.clock.install();
+  await page.goto('/check-inbox?kind=otp&email=new%40example.com');
+  await expect(page.getByTestId('resend-email')).toBeDisabled();
+  await page.clock.fastForward(61_000);
+  await page.getByTestId('resend-email').click();
+  expect(backend.requests.find((r) => r.path.endsWith('/otp'))?.body).toMatchObject({ email: 'new@example.com', create_user: true });
+  await expect(page.getByTestId('resend-email')).toBeDisabled();
 });
