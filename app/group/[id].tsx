@@ -12,6 +12,7 @@ import { GROUP_KEYS, groupAction, inviteUrl, isAdminRole, useGroupMembers, useGr
 import { useT } from '@/lib/i18n';
 import { confirm, showAlert } from '@/lib/alert';
 import { showToast } from '@/lib/toast';
+import { useExitRetention } from '@/lib/motion';
 import { shareToWhatsApp } from '@/lib/matches';
 import { GroupMember } from '@/lib/types';
 import { relativeTime } from '@/lib/utils';
@@ -204,7 +205,8 @@ function MemberRow({ member, me, isAdmin, onPress }: { member: GroupMember; me: 
   );
 }
 
-function MemberSheet({ member, groupId, isOwner, myId, onClose }: { member: GroupMember | null; groupId: string; isOwner: boolean; myId?: string; onClose: () => void }) {
+function MemberSheet({ member: selectedMember, groupId, isOwner, myId, onClose }: { member: GroupMember | null; groupId: string; isOwner: boolean; myId?: string; onClose: () => void }) {
+  const member = useExitRetention(selectedMember);
   const t = useT();
   const client = useQueryClient();
   const [rating, setRating] = useState<number | null>(null);
@@ -254,7 +256,7 @@ function MemberSheet({ member, groupId, isOwner, myId, onClose }: { member: Grou
   const canRemove = member.user_id !== myId && member.role !== 'owner' && (isOwner || member.role === 'member');
 
   return (
-    <Sheet visible onClose={close} title={member.display_name} subtitle={`${t(`role.${member.role}`)} · ${t('groups.selfRated', { rating: ratingLabel(member.self_rating) })}`} testID="member-sheet">
+    <Sheet visible={selectedMember !== null} onClose={close} title={member.display_name} subtitle={`${t(`role.${member.role}`)} · ${t('groups.selfRated', { rating: ratingLabel(member.self_rating) })}`} testID="member-sheet">
       <View style={{ gap: 8 }}>
         <Txt variant="label" tone="secondary">{t('groups.groupRating')}</Txt>
         <RatingPicker value={current} onChange={setRating} disabled={act.isPending} />

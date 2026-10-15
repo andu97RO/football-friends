@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useT } from '@/lib/i18n';
 import { showAlert } from '@/lib/alert';
 import { showToast } from '@/lib/toast';
+import { useExitRetention } from '@/lib/motion';
 import { useInvalidateMatch } from '@/lib/matches';
 import { Match } from '@/lib/types';
 import { formatMoney } from '@/lib/utils';
@@ -85,7 +86,8 @@ function formFromMatch(match: Match): MatchFormValue {
 
 /** M20: spots, format, venue and fee are all editable, with the same fields as New match. */
 export function EditMatchSheet(props: { visible: boolean; onClose: () => void; match: Match }) {
-  return props.visible ? <OpenEditMatchSheet {...props} /> : null;
+  const present = useExitRetention(props.visible ? true : null);
+  return present ? <OpenEditMatchSheet {...props} /> : null;
 }
 
 // Mounted per opening, so the form starts from the match once and background refetches never overwrite edits.

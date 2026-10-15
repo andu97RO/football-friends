@@ -41,6 +41,15 @@ export const theme = {
   borderRadius: { s: 10, m: 14, l: 20, xl: 28, full: 9999 },
   // Minimum touch target for every tappable control.
   hitTarget: 44,
+  motion: {
+    easeOut: [0.23, 1, 0.32, 1],
+    toastEnter: 180,
+    toastExit: 150,
+    modalEnter: 250,
+    modalExit: 200,
+    pressIn: 150,
+    pressOut: 100,
+  },
 } as const;
 
 export const avatarPalette = ['#B8E986', '#9DE2D0', '#F2F2EE', '#FFC48C', '#A9C8FF', '#F5A3C7', '#D6C4FF'];

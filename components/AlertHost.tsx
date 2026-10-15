@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Modal, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/constants/theme';
 import { AppAlertButton, AppAlertRequest, dismissCurrentAlert, subscribeToAlerts } from '@/lib/alert';
 import { Button, Txt } from '@/components/ui';
+import { MotionModal } from '@/components/ui/MotionModal';
 
 function testIdFor(button: AppAlertButton, index: number): string {
   const label = button.text?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -27,8 +28,13 @@ function variantFor(button: AppAlertButton, index: number, count: number) {
 /** Renders every `showAlert` / `confirm` request as an in-app dialog. */
 export default function AlertHost() {
   const [request, setRequest] = useState<AppAlertRequest | null>(null);
+  const [visible, setVisible] = useState(false);
 
-  useEffect(() => subscribeToAlerts(setRequest), []);
+  useEffect(() => subscribeToAlerts((next) => {
+    // Retain the previous dialog's contents until the shell finishes its exit.
+    if (next) setRequest(next);
+    setVisible(next !== null);
+  }), []);
 
   if (!request) return null;
 
@@ -41,35 +47,32 @@ export default function AlertHost() {
   };
 
   return (
-    <Modal animationType="fade" transparent visible onRequestClose={dismissCurrentAlert} statusBarTranslucent>
-      <View style={styles.overlay}>
-        <View style={styles.dialog} testID="alert-dialog" accessibilityRole="alert" accessibilityViewIsModal>
-          {iconSpec && (
-            <View style={[styles.icon, { backgroundColor: iconSpec.bg }]}>
-              <Ionicons name={iconSpec.name} size={24} color={iconSpec.color} />
-            </View>
-          )}
-          <Txt variant="title" testID="alert-title">{title}</Txt>
-          {message ? <Txt variant="body" tone="secondary" testID="alert-message">{message}</Txt> : null}
-          <View style={styles.actions}>
-            {buttons.map((button, index) => (
-              <Button
-                key={testIdFor(button, index)}
-                testID={testIdFor(button, index)}
-                title={button.text || 'OK'}
-                variant={variantFor(button, index, buttons.length)}
-                onPress={() => handlePress(button)}
-              />
-            ))}
+    <MotionModal visible={visible} onClose={dismissCurrentAlert} kind="dialog">
+      <View style={styles.dialog} testID="alert-dialog" accessibilityRole="alert" accessibilityViewIsModal>
+        {iconSpec && (
+          <View style={[styles.icon, { backgroundColor: iconSpec.bg }]}>
+            <Ionicons name={iconSpec.name} size={24} color={iconSpec.color} />
           </View>
+        )}
+        <Txt variant="title" testID="alert-title">{title}</Txt>
+        {message ? <Txt variant="body" tone="secondary" testID="alert-message">{message}</Txt> : null}
+        <View style={styles.actions}>
+          {buttons.map((button, index) => (
+            <Button
+              key={testIdFor(button, index)}
+              testID={testIdFor(button, index)}
+              title={button.text || 'OK'}
+              variant={variantFor(button, index, buttons.length)}
+              onPress={() => handlePress(button)}
+            />
+          ))}
         </View>
       </View>
-    </Modal>
+    </MotionModal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.overlay, padding: theme.spacing.l },
   dialog: {
     width: '100%',
     maxWidth: 400,
