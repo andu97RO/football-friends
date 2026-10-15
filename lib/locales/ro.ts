@@ -13,6 +13,7 @@ const ro: Record<string, string> = {
   'common.offline': 'Ești offline. Modificările se sincronizează când revine conexiunea.',
   'common.back': 'Înapoi',
   'common.cancel': 'Anulează',
+  'common.close': 'Închide',
   'common.done': 'Gata',
   'common.edit': 'Editează',
   'common.save': 'Salvează',

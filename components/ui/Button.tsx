@@ -1,6 +1,12 @@
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import Animated, { cubicBezier } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/constants/theme';
+import { useSystemReducedMotion } from '@/lib/motion';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const PRESS_EASING = cubicBezier(...theme.motion.easeOut);
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'link' | 'danger' | 'dangerGhost';
 
@@ -39,20 +45,36 @@ export function Button({
 }) {
   const colors = palette[variant];
   const inactive = disabled || loading;
+  const reduced = useSystemReducedMotion();
+  const [pressed, setPressed] = useState(false);
+  const [pointerPress, setPointerPress] = useState(false);
+  const active = pressed && !inactive;
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
       accessibilityState={{ disabled: inactive, busy: loading }}
       accessibilityLabel={accessibilityLabel ?? title}
       testID={testID}
       disabled={inactive}
       onPress={onPress}
-      style={({ pressed }) => [
+      onPressIn={(event) => {
+        setPointerPress(!('key' in event.nativeEvent));
+        setPressed(true);
+      }}
+      onPressOut={() => setPressed(false)}
+      pressRetentionOffset={8}
+      style={[
         styles.base,
         size === 'l' ? styles.large : styles.medium,
         { backgroundColor: colors.bg, borderColor: colors.border },
         inactive && styles.disabled,
-        pressed && !inactive && styles.pressed,
+        {
+          opacity: inactive ? 0.45 : active ? 0.8 : 1,
+          transform: [{ scale: active && pointerPress && !reduced ? 0.97 : 1 }],
+          transitionProperty: ['transform', 'opacity'],
+          transitionDuration: active ? theme.motion.pressIn : theme.motion.pressOut,
+          transitionTimingFunction: PRESS_EASING,
+        },
         style,
       ]}
     >
@@ -64,7 +86,7 @@ export function Button({
           <Text numberOfLines={1} style={[styles.text, size === 'm' && styles.textMedium, { color: colors.fg }]}>{title}</Text>
         </View>
       )}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -82,5 +104,4 @@ const styles = StyleSheet.create({
   text: { fontFamily: theme.fonts.heavy, fontSize: 16 },
   textMedium: { fontSize: 14 },
   disabled: { opacity: 0.45 },
-  pressed: { opacity: 0.8, transform: [{ scale: 0.99 }] },
 });

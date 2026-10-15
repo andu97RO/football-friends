@@ -1,7 +1,10 @@
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { Txt } from './Text';
+import { MotionModal } from './MotionModal';
+import { useT } from '@/lib/i18n';
 
 /** Bottom sheet with a drag-handle look. Content scrolls and stays above the keyboard. */
 export function Sheet({
@@ -22,27 +25,30 @@ export function Sheet({
   testID?: string;
 }) {
   const insets = useSafeAreaInsets();
+  const t = useT();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" />
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]} testID={testID} accessibilityViewIsModal>
-          <View style={styles.handle} />
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} bounces={false}>
-            <Txt variant="title" accessibilityRole="header">{title}</Txt>
-            {subtitle && <Txt variant="body" tone="secondary" style={{ marginTop: 4 }}>{subtitle}</Txt>}
-            <View style={styles.body}>{children}</View>
-            {footer && <View style={styles.footer}>{footer}</View>}
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    <MotionModal visible={visible} onClose={onClose} kind="sheet">
+      {(motionStyle) => (
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
+          <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.close')} />
+          <Animated.View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }, motionStyle]} testID={testID} accessibilityViewIsModal>
+            <View style={styles.handle} />
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} bounces={false}>
+              <Txt variant="title" accessibilityRole="header">{title}</Txt>
+              {subtitle && <Txt variant="body" tone="secondary" style={{ marginTop: 4 }}>{subtitle}</Txt>}
+              <View style={styles.body}>{children}</View>
+              {footer && <View style={styles.footer}>{footer}</View>}
+            </ScrollView>
+          </Animated.View>
+        </KeyboardAvoidingView>
+      )}
+    </MotionModal>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: theme.colors.overlay },
+  backdrop: { ...StyleSheet.absoluteFillObject },
   sheet: {
     maxHeight: '92%',
     width: '100%',

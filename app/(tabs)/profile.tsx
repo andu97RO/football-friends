@@ -11,6 +11,7 @@ import { useGroups } from '@/lib/groups';
 import { LocalePreference, useLocaleStore, useT } from '@/lib/i18n';
 import { confirm, showAlert } from '@/lib/alert';
 import { showToast } from '@/lib/toast';
+import { useExitRetention } from '@/lib/motion';
 import { scheduleLocalTestNotificationAsync, unregisterPushNotifications } from '@/lib/notifications';
 import { Profile } from '@/lib/types';
 import {
@@ -192,7 +193,8 @@ function Stat({ value, label }: { value: string; label: string }) {
 }
 
 function EditProfileSheet(props: { visible: boolean; onClose: () => void; profile: Profile }) {
-  return props.visible ? <OpenEditProfileSheet {...props} /> : null;
+  const present = useExitRetention(props.visible ? true : null);
+  return present ? <OpenEditProfileSheet {...props} /> : null;
 }
 
 // Mounted per opening, so background refetches never overwrite edits in progress.

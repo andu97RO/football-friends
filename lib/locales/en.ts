@@ -13,6 +13,7 @@ const en: Record<string, string> = {
   'common.offline': "You're offline. Changes will sync when you reconnect.",
   'common.back': 'Back',
   'common.cancel': 'Cancel',
+  'common.close': 'Close',
   'common.done': 'Done',
   'common.edit': 'Edit',
   'common.save': 'Save',

@@ -1,15 +1,27 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
 import { useToastStore } from '@/lib/toast';
 import { Txt } from '@/components/ui';
+import { useMotionPresence, useSystemReducedMotion } from '@/lib/motion';
 
 export default function ToastHost() {
   const toast = useToastStore((s) => s.toast);
   const dismiss = useToastStore((s) => s.dismiss);
   const insets = useSafeAreaInsets();
+  const [retained, setRetained] = useState(toast);
+  const reduced = useSystemReducedMotion();
+  const { present, progress } = useMotionPresence(!!toast, theme.motion.toastEnter, theme.motion.toastExit);
+  const motionStyle = useAnimatedStyle(() => ({
+    opacity: progress.get(),
+    transform: [{ translateY: reduced ? 0 : (1 - progress.get()) * 8 }],
+  }));
+
+  useEffect(() => {
+    if (toast) setRetained(toast);
+  }, [toast]);
 
   useEffect(() => {
     if (!toast) return;
@@ -17,30 +29,29 @@ export default function ToastHost() {
     return () => clearTimeout(timer);
   }, [toast, dismiss]);
 
-  if (!toast) return null;
+  const displayed = toast ?? retained;
+  if (!present || !displayed) return null;
   return (
     <View pointerEvents="box-none" style={[styles.host, { bottom: insets.bottom + 100 }]}>
       <Animated.View
-        key={toast.id}
-        entering={FadeInDown.duration(180)}
-        exiting={FadeOutDown.duration(150)}
-        style={[styles.toast, toast.tone === 'error' && styles.error]}
+        pointerEvents={toast ? 'auto' : 'none'}
+        style={[styles.toast, displayed.tone === 'error' && styles.error, motionStyle]}
         accessibilityLiveRegion="polite"
         accessibilityRole="alert"
         testID="toast"
       >
-        <Txt variant="bodyStrong" style={{ flex: 1 }}>{toast.message}</Txt>
-        {toast.action && (
+        <Txt variant="bodyStrong" style={{ flex: 1 }}>{displayed.message}</Txt>
+        {displayed.action && (
           <Pressable
             accessibilityRole="button"
             testID="toast-action"
             onPress={() => {
-              dismiss(toast.id);
-              toast.action!.onPress();
+              dismiss(displayed.id);
+              displayed.action!.onPress();
             }}
             style={styles.action}
           >
-            <Txt variant="bodyStrong" tone="primary">{toast.action.label}</Txt>
+            <Txt variant="bodyStrong" tone="primary">{displayed.action.label}</Txt>
           </Pressable>
         )}
       </Animated.View>

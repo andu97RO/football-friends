@@ -12,6 +12,7 @@ import { isAdminRole, useGroupRole } from '@/lib/groups';
 import { formatDate, useLocaleStore, useT } from '@/lib/i18n';
 import { confirm, showAlert } from '@/lib/alert';
 import { showToast } from '@/lib/toast';
+import { useExitRetention } from '@/lib/motion';
 import { shareToWhatsApp, useInvalidateMatch } from '@/lib/matches';
 import { firstName, teamLabel } from '@/lib/utils';
 import { Avatar, Button, Card, EmptyState, ErrorState, IconButton, LoadingState, Screen, ScreenHeader, Sheet, Txt } from '@/components/ui';
@@ -228,12 +229,13 @@ export default function TeamsScreen() {
 }
 
 /** T4: swapping keeps team sizes; each option previews the new averages. */
-function SwapSheet({ picked, teams, onClose, onSwap, busy }: { picked: Player | null; teams: TeamView[]; onClose: () => void; onSwap: (userId: string) => void; busy: boolean }) {
+function SwapSheet({ picked: selectedPlayer, teams, onClose, onSwap, busy }: { picked: Player | null; teams: TeamView[]; onClose: () => void; onSwap: (userId: string) => void; busy: boolean }) {
   const t = useT();
+  const picked = useExitRetention(selectedPlayer);
   if (!picked) return null;
   const from = teams.find((team) => team.players.some((p) => p.user_id === picked.user_id))!;
   return (
-    <Sheet visible onClose={onClose} title={t('teams.swapTitle', { name: firstName(picked.name) })} subtitle={t('teams.swapSubtitle')} testID="swap-sheet">
+    <Sheet visible={selectedPlayer !== null} onClose={onClose} title={t('teams.swapTitle', { name: firstName(picked.name) })} subtitle={t('teams.swapSubtitle')} testID="swap-sheet">
       <View style={[styles.current]}>
         <View style={[styles.dot, { backgroundColor: teamColor(from.index) }]} />
         <Txt variant="bodyStrong" tone="muted">{t('teams.currentTeam', { team: from.name })}</Txt>
