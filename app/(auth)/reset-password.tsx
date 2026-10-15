@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/lib/auth-store';
 import { MIN_PASSWORD } from '@/lib/auth-utils';
@@ -15,10 +15,13 @@ export default function ResetPasswordScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const saving = useRef(false);
 
   const save = async () => {
+    if (saving.current) return;
     setError(null);
     if (password.length < MIN_PASSWORD) return setError(t('auth.passwordTooShort', { count: MIN_PASSWORD }));
+    saving.current = true;
     setLoading(true);
     try {
       const { error } = await supabase.auth.updateUser({ password });
@@ -26,9 +29,12 @@ export default function ResetPasswordScreen() {
       useAuthStore.getState().setRecovery(false);
       showToast(t('auth.passwordUpdated'));
       router.replace('/(tabs)/matches');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error && err.name === 'AuthLockTimeoutError'
+        ? t('auth.sessionBusy')
+        : err instanceof Error ? err.message : t('auth.resetFailed'));
     } finally {
+      saving.current = false;
       setLoading(false);
     }
   };

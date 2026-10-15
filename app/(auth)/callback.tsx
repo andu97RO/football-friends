@@ -23,10 +23,13 @@ export default function AuthCallbackScreen() {
 
       // Check if this is a recovery flow from the URL hash
       if (url) {
+        // The router's params may not be populated on the first render. Read
+        // the query directly too, before Supabase consumes the token fragment.
+        isRecovery = isRecovery || new URL(url).searchParams.get('type') === 'recovery';
         const hashParams = url.split('#')[1];
         if (hashParams) {
           const urlParams = new URLSearchParams(hashParams);
-          isRecovery = urlParams.get('type') === 'recovery';
+          isRecovery = isRecovery || urlParams.get('type') === 'recovery';
         }
       }
 
@@ -34,6 +37,8 @@ export default function AuthCallbackScreen() {
       if (params.type === 'recovery') {
         isRecovery = true;
       }
+
+      if (isRecovery) useAuthStore.getState().setRecovery(true);
 
       // Extract tokens from params or URL hash
       let access_token = params.access_token as string;
