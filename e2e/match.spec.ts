@@ -6,7 +6,7 @@ test('M9 M11 M12 M13 M14: detail answers when, where, who and how much', async (
   await page.goto('/match/match1');
   await expect(page.getByText('3 teams of 6')).toBeVisible();
   await expect(page.getByText('25 RON each')).toBeVisible();
-  await expect(page.getByTestId('squad-grid').getByText('Mihai')).toBeVisible();
+  await expect(page.getByTestId('squad-grid').getByText('Mihai Ionescu')).toBeVisible();
   await expect(page.getByTestId('open-chat')).toContainText('Match chat');
   await expect(page.getByTestId('open-teams')).toContainText(/Teams at \d\d:\d\d/);
   await page.reload();

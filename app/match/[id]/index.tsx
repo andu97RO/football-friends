@@ -311,7 +311,7 @@ export default function MatchDetailScreen() {
         </Card>
       )}
 
-      {/* M12: first names, and empty places that are clearly empty. */}
+      {/* M12: full names (so two Andreis can be told apart), and empty places that are clearly empty. */}
       <SectionHeader
         title={t('match.squadCount', { count: confirmed.length, spots: match.spots })}
         right={!full && !kicked ? <Txt variant="caption" tone="primary">{t('match.spotsLeft', { count: spotsLeft })}</Txt> : undefined}
@@ -321,8 +321,8 @@ export default function MatchDetailScreen() {
           const isMe = p.user_id === myId;
           return (
             <View key={p.user_id} style={[styles.slot, isMe && styles.slotMe, p.attended === false && { opacity: 0.45 }]}>
-              <Txt variant="caption" numberOfLines={1} style={[styles.slotText, isMe && { color: theme.colors.primaryText }]}>
-                {isMe ? t('common.you') : firstName(p.display_name)}
+              <Txt variant="caption" numberOfLines={2} style={[styles.slotText, isMe && { color: theme.colors.primaryText }]}>
+                {isMe ? t('common.you') : (p.display_name?.trim() || '?')}
               </Txt>
             </View>
           );
@@ -503,12 +503,12 @@ const styles = StyleSheet.create({
   feeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   slot: {
-    width: '31.5%', minHeight: 44, borderRadius: theme.borderRadius.s, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6,
+    width: '31.5%', minHeight: 44, borderRadius: theme.borderRadius.s, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, paddingVertical: 6,
     backgroundColor: theme.colors.surfaceRaised, borderWidth: 1, borderColor: theme.colors.border,
   },
   slotMe: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primaryTint },
   slotEmpty: { backgroundColor: 'transparent', borderStyle: 'dashed', borderColor: theme.colors.borderStrong },
-  slotText: { fontFamily: theme.fonts.bold, color: theme.colors.text },
+  slotText: { fontFamily: theme.fonts.bold, color: theme.colors.text, textAlign: 'center' },
   waitRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48 },
   waitPos: { fontSize: 20, width: 40, color: theme.colors.textSecondary },
   scores: { flexDirection: 'row', gap: 10 },
