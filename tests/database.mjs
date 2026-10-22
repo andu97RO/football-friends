@@ -282,5 +282,31 @@ eq(await scalar('select count(*)::int from group_members($1) where user_id=$2',[
 }
 await as(ids[0]);await db.query('delete from match where id=$1',[m1]);
 eq(await scalar('select count(*)::int from team where match_id=$1',[m1]),0);
+// Owners rename, describe and delete a group; members can only leave.
+{
+  const owner=ids[3], member='00000000-0000-4000-8000-000000000010';
+  await admin(); await db.query("insert into auth.users(id,email,email_confirmed_at) values($1,'member10@example.test',now())",[member]);
+  await as(owner); const g=await group('create',null,null,'Edit me');
+  await db.query("select group_action('update',$1,null,$2,$3)",[g,'  Renamed  ',' Thursdays at 20:00 ']); checks++;
+  eq((await db.query('select name,description from club where id=$1',[g])).rows[0],{name:'Renamed',description:'Thursdays at 20:00'});
+  await deny("select group_action('update',$1,null,'  ','')",[g]);
+  await deny("select group_action('leave',$1)",[g]);
+  const code=await scalar('select group_invite($1)',[g]);
+  await as(member); await group('join_code',null,null,code);
+  await deny("select group_action('update',$1,null,'Hijacked','')",[g]);
+  await deny("select group_action('delete',$1)",[g]);
+  await group('leave',g);
+  eq(await scalar('select count(*)::int from group_membership where club_id=$1 and user_id=$2',[g,member]),0);
+  await group('join_code',null,null,code);
+  await admin(); const m=await createMatch(g);
+  await db.query("insert into signup(match_id,user_id,state) values($1,$2,'confirmed')",[m,member]);
+  await as(owner); await group('delete',g);
+  await admin();
+  eq(await scalar('select count(*)::int from club where id=$1',[g]),0);
+  eq(await scalar('select count(*)::int from match where club_id=$1',[g]),0);
+  eq(await scalar('select count(*)::int from signup where match_id=$1',[m]),0);
+  eq(await scalar('select count(*)::int from group_membership where club_id=$1',[g]),0);
+  eq(await scalar("select count(*)::int from audit_log where action='group_delete' and meta->>'club_id'=$1 and meta->>'name'='Renamed'",[g]),1);
+}
 console.log(`Database isolation, roles, ratings, chat, waitlist, storage and atomic rollback: ${checks} checks passed`);
 await db.close();
