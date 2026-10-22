@@ -6,23 +6,26 @@ import { useAuthStore } from '@/lib/auth-store';
 import { isVerifiedSession } from '@/lib/auth-utils';
 import { callFunction, useFeed } from '@/lib/api';
 import { useGroups } from '@/lib/groups';
-import { formatDate, useT } from '@/lib/i18n';
+import { formatDate, fromZonedWall, toZonedWall, useT } from '@/lib/i18n';
 import { showToast } from '@/lib/toast';
 import { showAlert } from '@/lib/alert';
 import { MatchForm, matchFormError, matchFormToRow, MatchFormValue } from '@/components/MatchForm';
 import { Button, ChoiceChip, LoadingState, Screen, ScreenHeader, Txt } from '@/components/ui';
 
+// Defaults are wall-clock times in TIMEZONE, whatever zone the device is in.
 function nextWeekAt(hour: number, minute: number): Date {
-  const d = new Date();
+  const d = toZonedWall(new Date());
   d.setDate(d.getDate() + 7);
   d.setHours(hour, minute, 0, 0);
-  return d;
+  return fromZonedWall(d);
 }
 
 function defaults(): MatchFormValue {
   const kickOff = nextWeekAt(20, 0);
-  const signupOpen = new Date(kickOff.getTime() - 3 * 24 * 60 * 60 * 1000);
-  signupOpen.setHours(10, 0, 0, 0);
+  const signup = toZonedWall(kickOff);
+  signup.setDate(signup.getDate() - 3);
+  signup.setHours(10, 0, 0, 0);
+  const signupOpen = fromZonedWall(signup);
   return { kickOff, signupOpen, venueName: '', venueUrl: '', fee: '', currency: 'RON', paymentNote: '', spots: 18, teams: 3, repeatWeekly: true };
 }
 
