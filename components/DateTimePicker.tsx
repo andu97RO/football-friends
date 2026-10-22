@@ -16,6 +16,16 @@ if (Platform.OS === 'web') {
 
 type Part = 'date' | 'time';
 
+// The calendar renders through a portal. Inside a sheet it has to live in the modal
+// itself: a portal in <body> sits under a sheet that was reopened later, and the
+// modal's focus trap pulls focus back out of the calendar, which closes it.
+// The portal moves on pointer down, before the calendar opens into it.
+function placePortal(target?: Element | null) {
+  const host = target?.closest('[aria-modal="true"]') ?? document.body;
+  const portal = document.getElementById('datepicker-portal') ?? Object.assign(document.createElement('div'), { id: 'datepicker-portal' });
+  if (host.lastElementChild !== portal) host.appendChild(portal);
+}
+
 /**
  * D2: one date + time row used by New match and Edit match alike.
  * The date is on the left, the time on the right; each half opens its own picker.
@@ -40,11 +50,7 @@ export default function DateTimeRow({
   const [open, setOpen] = useState<Part | null>(null);
 
   useEffect(() => {
-    if (Platform.OS === 'web' && !document.getElementById('datepicker-portal')) {
-      const portalDiv = document.createElement('div');
-      portalDiv.id = 'datepicker-portal';
-      document.body.appendChild(portalDiv);
-    }
+    if (Platform.OS === 'web' && !document.getElementById('datepicker-portal')) placePortal();
   }, []);
 
   // Keep the other half of the value when one half changes.
@@ -64,7 +70,7 @@ export default function DateTimeRow({
   const timeText = formatDate.time(value, locale);
 
   const webInput = (text: string, style: object) => (
-    <div style={{ cursor: 'pointer', color: theme.colors.text, fontFamily: theme.fonts.semibold, fontSize: 16, ...style }}>{text}</div>
+    <div onPointerDown={(e) => placePortal(e.currentTarget)} style={{ cursor: 'pointer', color: theme.colors.text, fontFamily: theme.fonts.semibold, fontSize: 16, ...style }}>{text}</div>
   );
 
   return (
