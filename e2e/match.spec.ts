@@ -92,6 +92,38 @@ test('chat denies users outside the group', async ({ page, backend }) => {
 });
 
 
+test('match dates stay editable after saving and reopening the sheet', async ({ page, backend }) => {
+  await login(page);
+  await page.goto('/match/match1');
+  const sheet = page.getByTestId('edit-match-sheet');
+  // Pick a time from each row's web picker; the second opening once hid the picker behind the sheet.
+  const pickTime = async (row: string, time: string) => {
+    const input = sheet.getByTestId(row).locator('div[style*="cursor"]').nth(1);
+    await input.click();
+    await page.locator('.react-datepicker-popper .react-datepicker__time-list-item', { hasText: time }).click();
+    await expect(page.locator('.react-datepicker-popper')).toHaveCount(0);
+    await expect(input).toHaveText(time);
+  };
+  const minutes = (iso: string) => new Date(iso).getHours() * 60 + new Date(iso).getMinutes();
+  for (const [kickOff, signup] of [['20:30', '08:00'], ['21:00', '09:00']]) {
+    await page.getByTestId('organiser-menu').click();
+    await page.getByTestId('organiser-edit').click();
+    await expect(sheet).toBeVisible();
+    await page.waitForTimeout(500);
+    await sheet.getByTestId('kickoff-row').locator('div[style*="cursor"]').first().click();
+    await page.locator('.react-datepicker__day:not(.react-datepicker__day--disabled):not(.react-datepicker__day--outside-month):not(.react-datepicker__day--selected)').last().click();
+    await expect(page.locator('.react-datepicker-popper')).toHaveCount(0);
+    await pickTime('kickoff-row', kickOff);
+    await pickTime('signup-row', signup);
+    await page.getByTestId('save-match').click();
+    await expect(sheet).toHaveCount(0);
+    const [kh, km] = kickOff.split(':').map(Number);
+    const [sh, sm] = signup.split(':').map(Number);
+    expect(minutes(backend.matches[0].kick_off)).toBe(kh * 60 + km);
+    expect(minutes(backend.matches[0].signup_open_at)).toBe(sh * 60 + sm);
+  }
+});
+
 test('locked match editing keeps the drawn format fixed', async ({ page, backend }) => {
   backend.matches[0].status = 'locked';
   await login(page);

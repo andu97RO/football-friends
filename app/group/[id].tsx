@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, RefreshControl, Share, StyleSheet, View } from 'react-native';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,7 +14,7 @@ import { confirm, showAlert } from '@/lib/alert';
 import { showToast } from '@/lib/toast';
 import { useExitRetention } from '@/lib/motion';
 import { shareToWhatsApp } from '@/lib/matches';
-import { GroupMember } from '@/lib/types';
+import { GroupMember, MyGroup } from '@/lib/types';
 import { relativeTime } from '@/lib/utils';
 import {
   Avatar, Button, Card, EmptyState, ErrorState, Field, ListGroup, ListRow, LoadingState, RatingPicker, ratingLabel,
@@ -35,6 +35,7 @@ export default function GroupScreen() {
   const members = useGroupMembers(group ? id : undefined);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<GroupMember | null>(null);
+  const [editingGroup, setEditingGroup] = useState(false);
 
   const invite = useQuery({
     queryKey: ['group-invite', id],
@@ -83,6 +84,24 @@ export default function GroupScreen() {
       destructive: true,
     });
     if (ok) act.mutate({ action: 'leave', g: id }, { onSuccess: () => router.replace('/(tabs)/groups') });
+  };
+
+  const deleteGroup = async () => {
+    const ok = await confirm({
+      title: t('groups.deleteTitle', { name: group.name }),
+      message: t('groups.deleteBody'),
+      cancelLabel: t('common.cancel'),
+      confirmLabel: t('groups.delete'),
+      destructive: true,
+    });
+    if (ok) {
+      act.mutate({ action: 'delete', g: id }, {
+        onSuccess: () => {
+          showToast(t('groups.deleted', { name: group.name }));
+          router.replace('/(tabs)/groups');
+        },
+      });
+    }
   };
 
   return (
@@ -171,13 +190,50 @@ export default function GroupScreen() {
                 if (ok) act.mutate({ action: 'reset_code', g: id });
               }}
             />
+            {isOwner && (
+              <ListRow kind="action" icon="create-outline" title={t('groups.editDetails')} subtitle={t('groups.editDetailsHelp')} onPress={() => setEditingGroup(true)} testID="edit-group" />
+            )}
+            {isOwner && (
+              <ListRow kind="action" icon="trash-outline" tone="danger" title={t('groups.delete')} subtitle={t('groups.deleteHelp')} onPress={deleteGroup} testID="delete-group" />
+            )}
           </ListGroup>
         </>
       )}
       {!isOwner && <Button title={t('groups.leave')} variant="dangerGhost" size="m" onPress={leave} style={{ alignSelf: 'center' }} />}
 
+      {isOwner && <EditGroupSheet group={group} visible={editingGroup} onClose={() => setEditingGroup(false)} />}
       <MemberSheet member={editing} groupId={id} isOwner={isOwner} myId={myId} onClose={() => setEditing(null)} />
     </Screen>
+  );
+}
+
+/** Owner-only: rename the group and edit its description. */
+function EditGroupSheet({ group, visible, onClose }: { group: MyGroup; visible: boolean; onClose: () => void }) {
+  const t = useT();
+  const client = useQueryClient();
+  const [name, setName] = useState(group.name);
+  const [description, setDescription] = useState(group.description ?? '');
+  useEffect(() => {
+    if (!visible) return;
+    setName(group.name);
+    setDescription(group.description ?? '');
+  }, [visible, group.name, group.description]);
+  const save = useMutation({
+    mutationFn: () => groupAction({ action: 'update', g: group.club_id, value: name.trim(), description: description.trim() }),
+    onSuccess: async () => {
+      await Promise.all(GROUP_KEYS.map((key) => client.invalidateQueries({ queryKey: [key] })));
+      showToast(t('groups.detailsSaved'));
+      onClose();
+    },
+    onError: (error: Error) => showAlert(t('common.errorTitle'), error.message),
+  });
+  const unchanged = name.trim() === group.name && description.trim() === (group.description ?? '');
+  return (
+    <Sheet visible={visible} onClose={onClose} title={t('groups.editDetails')} testID="edit-group-sheet">
+      <Field label={t('groups.name')} placeholder={t('groups.namePlaceholder')} value={name} onChangeText={setName} maxLength={80} testID="edit-group-name" />
+      <Field label={t('groups.description')} placeholder={t('groups.descriptionPlaceholder')} value={description} onChangeText={setDescription} maxLength={500} multiline />
+      <Button title={t('common.save')} onPress={() => save.mutate()} disabled={!name.trim() || unchanged} loading={save.isPending} testID="save-group" />
+    </Sheet>
   );
 }
 

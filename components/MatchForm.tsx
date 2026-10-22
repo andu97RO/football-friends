@@ -17,8 +17,8 @@ export type MatchFormValue = {
   repeatWeekly: boolean;
 };
 
-export function matchFormError(value: MatchFormValue, t: (key: string, params?: any) => string, isNew: boolean): string | null {
-  if (isNew && value.kickOff.getTime() <= Date.now()) return t('newMatch.errorPast');
+export function matchFormError(value: MatchFormValue, t: (key: string, params?: any) => string, checkPast: boolean): string | null {
+  if (checkPast && value.kickOff.getTime() <= Date.now()) return t('newMatch.errorPast');
   if (value.signupOpen.getTime() >= value.kickOff.getTime() - SOFT_LOCK_MS) return t('newMatch.errorSignupAfterKickoff');
   if (value.teams > value.spots) return t('newMatch.errorTeams');
   const fee = Number(value.fee.replace(',', '.') || '0');

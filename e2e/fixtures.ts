@@ -206,6 +206,14 @@ export const test = base.extend<{ backend: Backend }>({
               state.groups.find((x) => x.id === g)!.listed = value === 'true';
             } else if (action === 'remove') {
               state.memberships = state.memberships.filter((m) => !(m.club_id === g && m.user_id === target));
+            } else if (action === 'leave') {
+              state.memberships = state.memberships.filter((m) => !(m.club_id === g && m.user_id === user.id));
+            } else if (action === 'update') {
+              Object.assign(state.groups.find((x) => x.id === g)!, { name: value, description });
+            } else if (action === 'delete') {
+              state.groups = state.groups.filter((x) => x.id !== g);
+              state.memberships = state.memberships.filter((m) => m.club_id !== g);
+              state.matches = state.matches.filter((m) => m.club_id !== g);
             } else {
               const m = state.memberships.find((x) => x.club_id === g && x.user_id === target);
               if (m && action === 'review') m.status = value;

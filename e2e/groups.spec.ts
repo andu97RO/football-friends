@@ -55,3 +55,37 @@ test('M8: opening an invite link joins the group', async ({ page, backend }) => 
   await expect(page).toHaveURL(/matches/);
   expect(backend.memberships.some((m) => m.club_id === 'club2' && m.status === 'approved')).toBe(true);
 });
+
+test('owners rename a group and edit its description', async ({ page, backend }) => {
+  await login(page);
+  await page.goto('/group/club1');
+  await page.getByTestId('edit-group').click();
+  await expect(page.getByTestId('edit-group-sheet')).toBeVisible();
+  await page.waitForTimeout(500);
+  await page.getByTestId('edit-group-name').fill('Friday 7-a-side');
+  await page.getByTestId('save-group').click();
+  await expect.poll(() => backend.groups.find((g) => g.id === 'club1')?.name).toBe('Friday 7-a-side');
+  expect(backend.groups.find((g) => g.id === 'club1')?.description).toBe('Every Thursday at Arena');
+});
+
+test('owners delete a group after confirming', async ({ page, backend }) => {
+  await login(page);
+  await page.goto('/group/club1');
+  await page.getByTestId('delete-group').click();
+  await expect(page.getByTestId('alert-title')).toHaveText('Delete Thursday 6-a-side?');
+  await page.getByTestId('alert-button-delete-group').click();
+  await expect(page).toHaveURL(/groups/);
+  await expect.poll(() => backend.groups.some((g) => g.id === 'club1')).toBe(false);
+});
+
+test('members leave a group; only owners see edit and delete', async ({ page, backend }) => {
+  backend.memberships.find((m) => m.club_id === 'club1' && m.user_id === 'user123')!.role = 'member';
+  await login(page);
+  await page.goto('/group/club1');
+  await expect(page.getByTestId('edit-group')).toHaveCount(0);
+  await expect(page.getByTestId('delete-group')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Leave group' }).click();
+  await page.getByTestId('alert-button-leave-group').click();
+  await expect(page).toHaveURL(/groups/);
+  expect(backend.memberships.some((m) => m.club_id === 'club1' && m.user_id === 'user123')).toBe(false);
+});

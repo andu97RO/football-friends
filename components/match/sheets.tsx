@@ -101,14 +101,16 @@ function OpenEditMatchSheet({ visible, onClose, match }: { visible: boolean; onC
       const { error } = await supabase.from('match').update(matchFormToRow(form)).eq('id', match.id);
       if (error) throw new Error(/Capacity is below/.test(error.message) ? t('editMatch.errorCapacity') : error.message);
     },
-    onSuccess: () => {
-      void invalidate();
+    // Refetch before closing, so reopening the sheet starts from the saved values.
+    onSuccess: async () => {
+      await invalidate();
       onClose();
       showToast(t('editMatch.saved'));
     },
     onError: (error: Error) => showAlert(t('common.errorTitle'), error.message),
   });
-  const error = matchFormError(form, t, false);
+  // A moved kick-off must still be in the future; an untouched one is left alone.
+  const error = matchFormError(form, t, form.kickOff.getTime() !== new Date(match.kick_off).getTime());
 
   return (
     <Sheet
