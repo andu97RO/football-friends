@@ -3,7 +3,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import RNDateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/constants/theme';
-import { formatDate, intlLocale, useLocaleStore, useT } from '@/lib/i18n';
+import { formatDate, fromZonedWall, intlLocale, toZonedWall, useLocaleStore, useT } from '@/lib/i18n';
 import { Txt } from '@/components/ui';
 
 let ReactDatePicker: any;
@@ -53,12 +53,17 @@ export default function DateTimeRow({
     if (Platform.OS === 'web' && !document.getElementById('datepicker-portal')) placePortal();
   }, []);
 
+  // Pickers read and set device-local fields, so they get the match's wall clock in
+  // TIMEZONE (the zone every time is shown in) and the pick is converted back.
+  const wall = toZonedWall(value);
+  const minWall = minimumDate && toZonedWall(minimumDate);
+
   // Keep the other half of the value when one half changes.
   const merge = (part: Part, picked: Date) => {
-    const next = new Date(value);
+    const next = new Date(wall);
     if (part === 'date') next.setFullYear(picked.getFullYear(), picked.getMonth(), picked.getDate());
     else next.setHours(picked.getHours(), picked.getMinutes(), 0, 0);
-    onChange(next);
+    onChange(fromZonedWall(next));
   };
 
   const handleNative = (part: Part) => (event: DateTimePickerEvent, picked?: Date) => {
@@ -82,9 +87,9 @@ export default function DateTimeRow({
           <>
             <View style={{ flex: 1 }}>
               <ReactDatePicker
-                selected={value}
+                selected={wall}
                 onChange={(d: Date) => d && merge('date', d)}
-                minDate={minimumDate}
+                minDate={minWall}
                 locale={intlLocale(locale)}
                 portalId="datepicker-portal"
                 popperProps={{ strategy: 'fixed' }}
@@ -92,7 +97,7 @@ export default function DateTimeRow({
               />
             </View>
             <ReactDatePicker
-              selected={value}
+              selected={wall}
               onChange={(d: Date) => d && merge('time', d)}
               showTimeSelect
               showTimeSelectOnly
@@ -129,12 +134,12 @@ export default function DateTimeRow({
         Platform.OS === 'ios' ? (
           <View style={styles.iosPicker}>
             <RNDateTimePicker
-              value={value}
+              value={wall}
               mode={open}
               display="spinner"
               minuteInterval={5}
               onChange={handleNative(open)}
-              minimumDate={open === 'date' ? minimumDate : undefined}
+              minimumDate={open === 'date' ? minWall : undefined}
               textColor={theme.colors.text}
               themeVariant="dark"
               locale={intlLocale(locale)}
@@ -145,11 +150,11 @@ export default function DateTimeRow({
           </View>
         ) : (
           <RNDateTimePicker
-            value={value}
+            value={wall}
             mode={open}
             is24Hour
             onChange={handleNative(open)}
-            minimumDate={open === 'date' ? minimumDate : undefined}
+            minimumDate={open === 'date' ? minWall : undefined}
           />
         )
       )}

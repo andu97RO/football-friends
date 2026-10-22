@@ -83,6 +83,33 @@ export function intlLocale(locale: Locale = useLocaleStore.getState().locale): s
   return locale === 'ro' ? 'ro-RO' : 'en-GB';
 }
 
+const wallFormat = new Intl.DateTimeFormat('en-US', {
+  timeZone: TIMEZONE, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+});
+
+/**
+ * Times are shown in TIMEZONE, but pickers and Date setters work in the device's zone.
+ * toZonedWall gives a device-local Date whose fields read as the TIMEZONE wall clock;
+ * fromZonedWall turns such a Date back into the real instant.
+ */
+function zonedParts(date: Date) {
+  const f = Object.fromEntries(wallFormat.formatToParts(date).map((p) => [p.type, Number(p.value)]));
+  return [f.year, f.month - 1, f.day, f.hour, f.minute, f.second] as const;
+}
+
+export function toZonedWall(date: Date): Date {
+  return new Date(...zonedParts(date), date.getMilliseconds());
+}
+
+export function fromZonedWall(wall: Date): Date {
+  const utc = Date.UTC(wall.getFullYear(), wall.getMonth(), wall.getDate(), wall.getHours(), wall.getMinutes(), wall.getSeconds(), wall.getMilliseconds());
+  // TIMEZONE's offset at an instant; the second pass settles a DST change in between.
+  const offset = (t: number) => Date.UTC(...zonedParts(new Date(t))) - (t - (((t % 1000) + 1000) % 1000));
+  let t = utc - offset(utc);
+  t = utc - offset(t);
+  return new Date(t);
+}
+
 function part(date: Date, options: Intl.DateTimeFormatOptions, locale?: Locale): string {
   return date.toLocaleString(intlLocale(locale), { timeZone: TIMEZONE, ...options });
 }
