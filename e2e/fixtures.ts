@@ -301,8 +301,9 @@ export const test = base.extend<{ backend: Backend }>({
       }
       if (table === 'chat_message') {
         if (method === 'POST') {
-          state.chat.push({ id: `c${state.chat.length + 1}`, created_at: new Date().toISOString(), ...body });
-          return route.fulfill({ status: 201, body: '' });
+          const message = { id: `c${state.chat.length + 1}`, created_at: new Date().toISOString(), ...body };
+          state.chat.push(message);
+          return route.fulfill({ status: 201, json: message });
         }
         return respond(applyFilters(state.chat, url).map((c) => ({ ...c, profile: { display_name: state.profiles.find((p) => p.user_id === c.user_id)?.display_name } })));
       }

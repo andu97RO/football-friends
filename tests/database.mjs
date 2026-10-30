@@ -308,5 +308,46 @@ eq(await scalar('select count(*)::int from team where match_id=$1',[m1]),0);
   eq(await scalar('select count(*)::int from group_membership where club_id=$1',[g]),0);
   eq(await scalar("select count(*)::int from audit_log where action='group_delete' and meta->>'club_id'=$1 and meta->>'name'='Renamed'",[g]),1);
 }
+{
+  await admin();
+  await db.query("insert into audit_log(action,created_at) values('old_entry',now()-interval '13 months'),('recent_entry',now()-interval '11 months')");
+  eq(await scalar('select private.prune_audit_log()'),1);
+  eq(await scalar("select count(*)::int from audit_log where action in ('old_entry','recent_entry')"),1);
+  eq(await scalar("select action from audit_log where action in ('old_entry','recent_entry')"),'recent_entry');
+  await as(ids[0]); await deny('select private.prune_audit_log()');
+}
+{
+  // Security review: chat pushes come from stored messages, links are web links, avatars are own uploads.
+  const owner=ids[3], member='00000000-0000-4000-8000-000000000010';
+  await as(owner); const g=await group('create',null,null,'Hardening'); const code=await scalar('select group_invite($1)',[g]);
+  await as(member); await group('join_code',null,null,code);
+  await admin(); const m=await createMatch(g);
+  const post = async (content) => (await db.query('insert into chat_message(match_id,user_id,content) values($1,$2,$3) returning id',[m,member,content])).rows[0].id;
+  const claim = async (message,sender) => { await db.exec('reset role; set role service_role'); return (await db.query('select content from claim_chat_push($1,$2)',[message,sender])).rows; };
+  await as(member);
+  await deny("insert into chat_message(match_id,user_id,content,notified_at) values($1,$2,'Muted',now())",[m,member]);
+  const first=await post('First'); const second=await post('Second'); const stale=await post('Stale');
+  await deny('select * from claim_chat_push($1,$2)',[first,member]);
+  eq(await claim(first,owner),[]);
+  eq(await claim(first,member),[{content:'First'}]);
+  eq(await claim(first,member),[]);
+  eq(await claim(second,member),[]);
+  await admin(); await db.query("update chat_message set notified_at=now()-interval '20 seconds' where id=$1",[first]);
+  await db.query("update chat_message set created_at=now()-interval '3 minutes' where id=$1",[stale]);
+  eq(await claim(stale,member),[]);
+  eq(await claim(second,member),[{content:'Second'}]);
+  await as(owner);
+  await deny("update match set venue_url='javascript:alert(1)' where id=$1",[m]);
+  await deny("update match set venue_url='intent://pay#Intent;end' where id=$1",[m]);
+  await db.query("update match set venue_url='https://maps.app.goo.gl/abc' where id=$1",[m]);checks++;
+  const bucket='https://exqtxouswbcunrgxftzr.supabase.co/storage/v1/object/public/avatars/';
+  await as(member);
+  await deny("update profile set avatar_url='https://tracker.example/pixel.png' where user_id=$1",[member]);
+  await deny('update profile set avatar_url=$1 where user_id=$2',[`${bucket}${owner}/1.png`,member]);
+  await db.query('update profile set avatar_url=$1 where user_id=$2',[`${bucket}${member}/1.png`,member]);checks++;
+  await admin();
+  eq(await scalar("select file_size_limit::int from storage.buckets where id='avatars'"),5242880);
+  eq(await scalar("select to_regprocedure('public.auto_confirm_email()') is null"),true);
+}
 console.log(`Database isolation, roles, ratings, chat, waitlist, storage and atomic rollback: ${checks} checks passed`);
 await db.close();

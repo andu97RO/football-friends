@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import { theme } from '@/constants/theme';
@@ -14,6 +14,7 @@ import { showToast } from '@/lib/toast';
 import { useExitRetention } from '@/lib/motion';
 import { scheduleLocalTestNotificationAsync, unregisterPushNotifications } from '@/lib/notifications';
 import { Profile } from '@/lib/types';
+import { appUrl } from '@/lib/utils';
 import {
   Avatar, Button, Card, ChoiceChip, ErrorState, Field, ListGroup, ListRow, LoadingState, PasswordField, ratingLabel,
   Screen, ScreenHeader, SectionHeader, Segmented, Sheet, Txt,
@@ -176,6 +177,10 @@ export default function ProfileScreen() {
         <ListRow kind="action" icon="log-out-outline" title={t('profile.signOut')} onPress={signOut} testID="sign-out" />
         <ListRow kind="action" icon="trash-outline" tone="danger" title={t('profile.deleteAccount')} onPress={deleteAccount} testID="delete-account" />
       </ListGroup>
+      <ListGroup>
+        <ListRow icon="document-text-outline" title={t('legal.terms')} onPress={() => Linking.openURL(appUrl('/terms.html'))} testID="terms-link" />
+        <ListRow icon="shield-checkmark-outline" title={t('legal.privacy')} onPress={() => Linking.openURL(appUrl('/privacy.html'))} testID="privacy-link" />
+      </ListGroup>
 
       <EditProfileSheet visible={sheet === 'edit'} onClose={() => setSheet(null)} profile={me} />
       <ChangePasswordSheet visible={sheet === 'password'} onClose={() => setSheet(null)} />
@@ -225,7 +230,7 @@ function OpenEditProfileSheet({ visible, onClose, profile }: { visible: boolean;
       if (result.canceled || !result.assets[0]?.uri) return;
       setUploading(true);
       const blob = await (await fetch(result.assets[0].uri)).blob();
-      if (blob.size > 2 * 1024 * 1024) throw new Error(t('profile.photoTooBig'));
+      if (blob.size > 5 * 1024 * 1024) throw new Error(t('profile.photoTooBig'));
       const extensions: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
       if (!extensions[blob.type]) throw new Error(t('profile.photoType'));
       const path = `${profile.user_id}/${Date.now()}.${extensions[blob.type]}`;

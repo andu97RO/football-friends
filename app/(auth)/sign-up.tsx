@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { getAuthCallbackUrl, MIN_PASSWORD } from '@/lib/auth-utils';
 import { supabase } from '@/lib/supabase';
 import { useT } from '@/lib/i18n';
-import { AuthShell, OrDivider, SocialButtons, TextLink } from '@/components/AuthShell';
+import { AuthShell, LegalNote, OrDivider, SocialButtons, TextLink } from '@/components/AuthShell';
 import { Button, Field, PasswordField, RatingPicker, Txt } from '@/components/ui';
 
 export default function SignUpScreen() {
@@ -93,6 +93,7 @@ export default function SignUpScreen() {
 
       {error && <Txt variant="body" tone="error" accessibilityRole="alert" testID="auth-error">{error}</Txt>}
       <Button title={t('auth.createAccount')} onPress={handleSignUp} loading={loading} testID="create-account-button" />
+      <LegalNote />
       <TextLink prefix={t('auth.haveAccount')} label={t('auth.signIn')} onPress={() => router.replace('/(auth)/login')} testID="sign-in-link" />
     </AuthShell>
   );

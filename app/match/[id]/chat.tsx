@@ -85,10 +85,10 @@ export default function ChatScreen() {
 
   const send = useMutation({
     mutationFn: async (content: string) => {
-      const { error } = await supabase.from('chat_message').insert({ match_id: id, user_id: myId, content });
+      const { data, error } = await supabase.from('chat_message').insert({ match_id: id, user_id: myId, content }).select('id').single();
       if (error) throw error;
       // Chat pushes respect each player's "Chat" notification setting.
-      callFunction('notify-chat', { matchId: id, content }).catch(() => undefined);
+      callFunction('notify-chat', { messageId: data.id }).catch(() => undefined);
     },
     onMutate: async (content) => {
       await client.cancelQueries({ queryKey: key });

@@ -6,7 +6,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { isVerifiedSession } from '@/lib/auth-utils';
 import { requestEmailCode, emailAuthError } from '@/lib/email-auth';
 import { useT } from '@/lib/i18n';
-import { AuthShell, OrDivider, SocialButtons, TextLink } from '@/components/AuthShell';
+import { AuthShell, LegalNote, OrDivider, SocialButtons, TextLink } from '@/components/AuthShell';
 import { Button, Field, PasswordField, Txt } from '@/components/ui';
 
 export default function LoginScreen() {
@@ -109,6 +109,7 @@ export default function LoginScreen() {
       </View>
 
       <TextLink prefix={t('auth.noAccount')} label={t('auth.createAccount')} onPress={() => router.push('/(auth)/sign-up')} testID="sign-up-link" />
+      <LegalNote />
     </AuthShell>
   );
 }
