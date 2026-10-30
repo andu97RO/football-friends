@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { useT } from '@/lib/i18n';
-import { SOFT_LOCK_MS } from '@/lib/utils';
+import { isWebLink, SOFT_LOCK_MS } from '@/lib/utils';
 import DateTimeRow from '@/components/DateTimePicker';
 import { Field, ListGroup, ListRow, Stepper, Txt } from '@/components/ui';
 
@@ -23,6 +23,7 @@ export function matchFormError(value: MatchFormValue, t: (key: string, params?: 
   if (value.teams > value.spots) return t('newMatch.errorTeams');
   const fee = Number(value.fee.replace(',', '.') || '0');
   if (!Number.isFinite(fee) || fee < 0 || fee > 10000) return t('newMatch.errorFee');
+  if (value.venueUrl.trim() && !isWebLink(value.venueUrl)) return t('newMatch.errorMapLink');
   return null;
 }
 

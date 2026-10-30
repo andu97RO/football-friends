@@ -82,6 +82,9 @@ test('T6: chat has timestamps, a send button and no "You" labels', async ({ page
   await page.getByTestId('chat-input').fill('See you at 19:50');
   await page.getByTestId('chat-send').click();
   await expect.poll(() => backend.requests.some((r) => r.path.endsWith('/notify-chat'))).toBe(true);
+  // The push names the stored message; its text never comes from the request.
+  const push = backend.requests.find((r) => r.path.endsWith('/notify-chat'))!.body;
+  expect(push).toEqual({ messageId: backend.chat.at(-1)!.id });
 });
 
 test('chat denies users outside the group', async ({ page, backend }) => {

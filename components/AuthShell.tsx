@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/constants/theme';
 import { useT } from '@/lib/i18n';
 import { signInWithProvider, OAuthProvider } from '@/lib/oauth';
+import { appUrl } from '@/lib/utils';
 import { Button, Screen, ScreenHeader, Txt } from '@/components/ui';
 
 // Enable once the Apple provider is configured. Keep the button and OAuth flow ready.
@@ -90,6 +91,20 @@ export function TextLink({ prefix, label, onPress, testID }: { prefix?: string; 
     <View style={styles.linkRow}>
       {prefix && <Txt variant="body" tone="secondary">{prefix}</Txt>}
       <Button title={label} variant="link" size="m" onPress={onPress} testID={testID} style={styles.link} />
+    </View>
+  );
+}
+
+/** Terms and privacy links shown wherever an account can be created (email or Google). */
+export function LegalNote() {
+  const t = useT();
+  return (
+    <View style={{ gap: 2 }}>
+      <Txt variant="caption" tone="muted" style={{ textAlign: 'center' }}>{t('auth.legalNote')}</Txt>
+      <View style={styles.linkRow}>
+        <Button title={t('legal.terms')} variant="link" size="m" onPress={() => Linking.openURL(appUrl('/terms.html'))} style={styles.link} testID="terms-link" />
+        <Button title={t('legal.privacy')} variant="link" size="m" onPress={() => Linking.openURL(appUrl('/privacy.html'))} style={styles.link} testID="privacy-link" />
+      </View>
     </View>
   );
 }

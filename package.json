@@ -77,5 +77,8 @@
   "engines": {
     "node": "22.x"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "postcss": "^8.5.32"
+  }
 }

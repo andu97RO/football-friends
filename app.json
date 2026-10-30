@@ -22,7 +22,6 @@
         "applinks:footyfriends.app"
       ],
       "infoPlist": {
-        "NSUserTrackingUsageDescription": "We use this to send you notifications about your matches.",
         "CFBundleLocalizations": [
           "en",
           "ro"

@@ -85,8 +85,13 @@ export function teamLabel(name: string): string {
 }
 
 /** A map search link when the organiser did not paste one. */
+/** Only http(s) links may be opened from user content; never javascript: or other app schemes. */
+export function isWebLink(url: string): boolean {
+  return /^https?:\/\/\S+$/i.test(url.trim());
+}
+
 export function venueLink(name: string, url: string): string | null {
-  if (url.trim()) return url.trim();
+  if (isWebLink(url)) return url.trim();
   if (!name.trim()) return null;
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name.trim())}`;
 }
