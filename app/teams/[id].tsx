@@ -20,7 +20,8 @@ import { Avatar, Button, Card, EmptyState, ErrorState, IconButton, LoadingState,
 type Player = { user_id: string; name: string; avatar_url: string | null; rating: number | null };
 type TeamView = { id: string; name: string; index: number; players: Player[]; avg: number | null };
 
-const FAIR_GAP = 0.3;
+// Doubled with the move from a 0-5 to a 1-10 rating scale (was 0.3).
+const FAIR_GAP = 0.6;
 
 function average(players: Player[]): number | null {
   const rated = players.filter((p) => p.rating !== null);
@@ -142,7 +143,7 @@ export default function TeamsScreen() {
   const share = () => {
     const lines = [`⚽ ${when}${match.venue_name ? ` · ${match.venue_name}` : ''}`, ''];
     teams.forEach((team) => {
-      lines.push(`${team.name}: ${team.players.map((p) => firstName(p.name)).join(', ')}`);
+      lines.push(`${team.name}: ${team.players.map((p) => p.name).join(', ')}`);
     });
     void shareToWhatsApp(lines.join('\n'));
   };

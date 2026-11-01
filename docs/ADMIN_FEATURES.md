@@ -11,12 +11,12 @@ This guide covers the new admin features for managing player ratings and team as
 ## Player Rating Management
 
 ### Overview
-Admins can edit player ratings (1-5 scale) which are used for automated team balancing. The rating system allows admins to adjust player skill levels to ensure fair team distribution.
+Admins can edit player ratings (1-10 scale) which are used for automated team balancing. The rating system allows admins to adjust player skill levels to ensure fair team distribution.
 
 ### Features
 - **Tabbed Interface**: Navigate between "Matches" and "Players" tabs in the Admin screen
 - **Search & Filter**: Quickly find players by name
-- **Star Rating UI**: Tap stars to set ratings (1-5)
+- **Star Rating UI**: Tap stars to set ratings (1-10)
 - **Real-time Updates**: Changes are reflected immediately
 - **Audit Logging**: All rating changes are logged for tracking
 
@@ -34,7 +34,7 @@ Admins can edit player ratings (1-5 scale) which are used for automated team bal
 - `supabase/admin-policies.sql` - Added RLS policy for admin profile updates
 
 **Database:**
-- Updates `profile.rating_base` (1-5 integer)
+- Updates `profile.rating_base` (1-10 integer)
 - Creates audit log entry with action `update_player_rating`
 
 **API Calls:**

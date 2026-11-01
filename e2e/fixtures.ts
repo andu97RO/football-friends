@@ -18,8 +18,8 @@ export function initialBackend() {
     { user_id: 'applicant', display_name: 'Cristian Popescu', avatar_url: null, created_at: '2025-01-01', onboarded: true },
   ];
   const memberships: Row[] = [
-    { club_id: 'club1', user_id: user.id, role: 'owner', status: 'approved', rating: 4, self_rating: 3, created_at: '2025-01-01' },
-    ...players.map((p, i) => ({ club_id: 'club1', user_id: p.user_id, role: i === 0 ? 'admin' : 'member', status: 'approved', rating: [5, 3, 3, 3, 5, 2, 2, 4, 3, 3, 3, 4, 4, 3, 3, 3, 3][i], self_rating: 3, created_at: '2025-01-02' })),
+    { club_id: 'club1', user_id: user.id, role: 'owner', status: 'approved', rating: 8, self_rating: 6, created_at: '2025-01-01' },
+    ...players.map((p, i) => ({ club_id: 'club1', user_id: p.user_id, role: i === 0 ? 'admin' : 'member', status: 'approved', rating: [10, 6, 6, 6, 10, 4, 4, 8, 6, 6, 6, 8, 8, 6, 6, 6, 6][i], self_rating: 6, created_at: '2025-01-02' })),
   ];
   const groups: Row[] = [
     { id: 'club1', name: 'Thursday 6-a-side', description: 'Every Thursday at Arena', listed: false, invite_code: 'AB12CD34' },
@@ -194,12 +194,12 @@ export const test = base.extend<{ backend: Backend }>({
             if (action === 'create') {
               id = 'created-group';
               state.groups.push({ id, name: value, description, listed: false, invite_code: 'NEWGROUP' });
-              state.memberships.push({ club_id: id, user_id: user.id, role: 'owner', status: 'approved', rating: 3, self_rating: 3, created_at: '2026-01-01' });
+              state.memberships.push({ club_id: id, user_id: user.id, role: 'owner', status: 'approved', rating: 6, self_rating: 6, created_at: '2026-01-01' });
             } else if (action === 'join_code') {
               id = state.groups.find((x) => x.invite_code === value)?.id;
-              state.memberships.push({ club_id: id, user_id: user.id, role: 'member', status: 'approved', rating: 3, self_rating: 3, created_at: '2026-01-01' });
+              state.memberships.push({ club_id: id, user_id: user.id, role: 'member', status: 'approved', rating: 6, self_rating: 6, created_at: '2026-01-01' });
             } else if (action === 'request') {
-              state.memberships.push({ club_id: g, user_id: user.id, role: 'member', status: 'pending', rating: 3, self_rating: 3, created_at: '2026-01-01' });
+              state.memberships.push({ club_id: g, user_id: user.id, role: 'member', status: 'pending', rating: 6, self_rating: 6, created_at: '2026-01-01' });
             } else if (action === 'withdraw') {
               state.memberships = state.memberships.filter((m) => !(m.club_id === g && m.user_id === user.id && m.status === 'pending'));
             } else if (action === 'listed') {
@@ -226,7 +226,7 @@ export const test = base.extend<{ backend: Backend }>({
             return route.fulfill({
               json: state.teams.filter((t) => t.match_id === body.m).map((t) => {
                 const ids = state.assignments.filter((a) => a.team_id === t.id).map((a) => a.user_id);
-                const ratings = ids.map((u) => state.memberships.find((m) => m.user_id === u && m.club_id === 'club1')?.rating ?? 3);
+                const ratings = ids.map((u) => state.memberships.find((m) => m.user_id === u && m.club_id === 'club1')?.rating ?? 6);
                 return { team_id: t.id, avg_rating: Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10, players: ids.length };
               }),
             });
@@ -297,7 +297,7 @@ export const test = base.extend<{ backend: Backend }>({
       if (table === 'rating_snapshot') {
         const m = url.searchParams.get('match_id')?.slice(3);
         const teamIds = state.teams.filter((t) => t.match_id === m).map((t) => t.id);
-        return respond(state.assignments.filter((a) => teamIds.includes(a.team_id)).map((a) => ({ user_id: a.user_id, rating_display: state.memberships.find((x) => x.user_id === a.user_id)?.rating ?? 3 })));
+        return respond(state.assignments.filter((a) => teamIds.includes(a.team_id)).map((a) => ({ user_id: a.user_id, rating_display: state.memberships.find((x) => x.user_id === a.user_id)?.rating ?? 6 })));
       }
       if (table === 'chat_message') {
         if (method === 'POST') {

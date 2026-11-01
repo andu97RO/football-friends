@@ -2,7 +2,7 @@
 
 ## Summary
 
-Successfully migrated the FootyFriends app from OneSignal to Expo Push Notifications.
+Successfully migrated the Football Friends app from OneSignal to Expo Push Notifications.
 
 ## What Was Done
 

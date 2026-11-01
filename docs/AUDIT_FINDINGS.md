@@ -1,4 +1,4 @@
-# FootyFriends Audit — Historical Findings & Current Status
+# Football Friends Audit — Historical Findings & Current Status
 
 Original audit: 2 July 2026. Repository status reviewed on 15 October 2026
 against `main` at `0f65d86` (PRs #7–#10).

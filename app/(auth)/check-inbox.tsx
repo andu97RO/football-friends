@@ -6,6 +6,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { ensureProfile } from '@/lib/ensure-profile';
 import { requestEmailCode, emailAuthError } from '@/lib/email-auth';
 import { useT } from '@/lib/i18n';
+import { isStandalone } from '@/lib/pwa';
 import { showToast } from '@/lib/toast';
 import { AuthShell } from '@/components/AuthShell';
 import { Button, Field, Txt } from '@/components/ui';
@@ -107,6 +108,7 @@ export default function CheckInboxScreen() {
         </>
       )}
       {error && <Txt variant="body" tone="error" accessibilityRole="alert" testID="auth-error">{error}</Txt>}
+      {!isCode && isStandalone() && <Txt variant="body" tone="secondary" testID="standalone-link-hint">{t('auth.standaloneLinkHint')}</Txt>}
       <Txt variant="body" tone="secondary">{t('auth.checkSpam')}</Txt>
       <Button title={t('auth.backToSignIn')} onPress={() => router.replace('/(auth)/login')} disabled={sending || verifying} testID="back-to-sign-in" />
       <Button title={remaining > 0 ? t('auth.resendIn', { seconds: remaining }) : t(isCode ? 'auth.resendCode' : 'auth.resend')} variant="secondary" onPress={resend} loading={sending} disabled={!email || remaining > 0 || verifying} testID="resend-email" />

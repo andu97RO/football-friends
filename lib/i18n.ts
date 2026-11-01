@@ -10,7 +10,7 @@ export type LocalePreference = Locale | 'system';
 type Params = Record<string, string | number | null | undefined>;
 
 const dictionaries: Record<Locale, Record<string, string>> = { en, ro };
-const STORAGE_KEY = 'footy.locale';
+const STORAGE_KEY = 'footballfriends.locale';
 export const TIMEZONE = process.env.EXPO_PUBLIC_TIMEZONE || 'Europe/Bucharest';
 
 function systemLocale(): Locale {

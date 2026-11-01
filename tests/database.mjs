@@ -23,12 +23,37 @@ await db.exec(readFileSync('supabase/schema.sql','utf8').replace('create extensi
 await db.exec(`alter table public.profile add column is_admin boolean default false,add column avatar_url text,add column push_token text;`);
 await db.exec(readFileSync('supabase/chat.sql','utf8'));
 for (const file of readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort()) {
-  if (!file.includes('backfill')) await db.exec(readFileSync(`supabase/migrations/${file}`,'utf8'));
+  if (!file.includes('backfill') && !file.includes('rating_scale_10')) await db.exec(readFileSync(`supabase/migrations/${file}`,'utf8'));
 }
 let checks = 0;
 const scalar = async (sql, params=[]) => Object.values((await db.query(sql,params)).rows[0])[0];
+// Ratings moved from 0-5 to 1-10: existing values double (0 becomes 1) and the new bounds apply.
+{
+  const [a,b,c]=['a1','b2','c3'].map(x=>`00000000-0000-4000-8000-0000000000${x}`);
+  const club='00000000-0000-4000-8000-0000000000d4', legacyMatch='00000000-0000-4000-8000-0000000000e5';
+  for (const [id,rating] of [[a,0],[b,3],[c,5]]) await db.query(`insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data) values($1,$2,now(),$3)`,[id,`legacy${rating}@example.test`,JSON.stringify({initial_rating:rating})]);
+  await db.query(`insert into club(id,name,organizer_id) values($1,'Legacy',$2)`,[club,a]);
+  await db.query(`insert into match(id,club_id,kick_off,signup_open_at) values($1,$2,now()+interval '1 day',now())`,[legacyMatch,club]);
+  for (const [id,rating,role] of [[a,0,'owner'],[b,3,'member'],[c,5,'member']]) {
+    await db.query(`insert into group_membership(club_id,user_id,role,status,rating) values($1,$2,$3,'approved',$4)`,[club,id,role,rating]);
+    await db.query(`insert into rating_snapshot(match_id,user_id,rating_display) values($1,$2,$3)`,[legacyMatch,id,rating]);
+  }
+  await db.exec(readFileSync('supabase/migrations/20261031120000_rating_scale_10.sql','utf8'));
+  for (const sql of ['select rating_base v from profile where user_id in ($1,$2,$3)','select rating v from group_membership where user_id in ($1,$2,$3)','select rating_display v from rating_snapshot where user_id in ($1,$2,$3)']) {
+    assert.deepEqual((await db.query(`${sql} order by v`,[a,b,c])).rows.map(r=>r.v),[1,6,10]);checks++;
+  }
+  await assert.rejects(db.query('update profile set rating_base=0 where user_id=$1',[a]));checks++;
+  await assert.rejects(db.query('update profile set rating_base=11 where user_id=$1',[a]));checks++;
+  await assert.rejects(db.query('update group_membership set rating=11 where user_id=$1',[a]));checks++;
+  await db.query('delete from rating_snapshot where match_id=$1',[legacyMatch]);
+  await db.query('delete from match where id=$1',[legacyMatch]);
+  await db.query('delete from group_membership where club_id=$1',[club]);
+  await db.query('delete from audit_log where club_id=$1',[club]);
+  await db.query('delete from club where id=$1',[club]);
+  await db.query('delete from auth.users where id in ($1,$2,$3)',[a,b,c]);
+}
 const ids = Array.from({length:5},(_,i)=>`00000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`);
-for (let i=0;i<ids.length;i++) await db.query(`insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data) values($1,$2,$3,$4)`,[ids[i],`player${i}@example.test`,i===4?null:new Date().toISOString(),JSON.stringify({initial_rating:i})]);
+for (let i=0;i<ids.length;i++) await db.query(`insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data) values($1,$2,$3,$4)`,[ids[i],`player${i}@example.test`,i===4?null:new Date().toISOString(),JSON.stringify({initial_rating:i+1})]);
 const as = async (id) => { await db.exec(`reset role; set role ${id ? 'authenticated':'anon'};`); await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id??'']); };
 const admin = async () => db.exec('reset role');
 const deny = async (sql,params=[]) => { await assert.rejects(db.query(sql,params)); checks++; };
@@ -39,7 +64,7 @@ await as(ids[0]); const g1=await group('create',null,null,'First group');
 eq(await scalar('select listed from club where id=$1',[g1]),false);
 await as(ids[1]); await deny("select group_action('request',$1)",[g1]);
 await as(ids[0]); await group('listed',g1,null,'true');
-eq(await scalar('select rating from my_groups() where club_id=$1',[g1]),0);
+eq(await scalar('select rating from my_groups() where club_id=$1',[g1]),1);
 await deny('update profile set rating_base=5 where user_id=$1',[ids[0]]);
 await deny('update profile set is_admin=true where user_id=$1',[ids[0]]);
 await deny('select push_token from profile');
@@ -49,12 +74,12 @@ await as(ids[1]); const g2=await group('create',null,null,'Second group');
 await group('request',g1);
 eq(await scalar('select status from group_membership where club_id=$1 and user_id=$2',[g1,ids[1]]),'pending');
 await deny('select group_action(\'review\',$1,$2,\'approved\')',[g1,ids[1]]);
-await as(ids[0]); await group('review',g1,ids[1],'approved'); await group('rating',g1,ids[1],'5');
+await as(ids[0]); await group('review',g1,ids[1],'approved'); await group('rating',g1,ids[1],'9');
 await as(ids[1]);
-eq(await scalar('select rating from my_groups() where club_id=$1',[g2]),1);
+eq(await scalar('select rating from my_groups() where club_id=$1',[g2]),2);
 await deny('select group_action(\'rating\',$1,$2,\'4\')',[g1,ids[1]]);
 await as(ids[0]); await group('role',g1,ids[1],'admin');
-await as(ids[1]); await group('rating',g1,ids[0],'0');
+await as(ids[1]); await group('rating',g1,ids[0],'1'); await deny('select group_action(\'rating\',$1,$2,\'0\')',[g1,ids[0]]); await deny('select group_action(\'rating\',$1,$2,\'11\')',[g1,ids[0]]); await group('rating',g1,ids[0],'10'); await group('rating',g1,ids[0],'1');
 await deny('select group_action(\'role\',$1,$2,\'member\')',[g1,ids[0]]);
 await as(ids[0]); await group('role',g1,ids[1],'member');
 for (const u of [ids[2],ids[3]]) {await as(u);await group('request',g1);}
@@ -104,7 +129,7 @@ eq(await scalar('select count(*)::int from team where match_id=$1',[m1]),0);
 await admin();await db.exec('drop trigger failure on rating_snapshot');
 await as(ids[0]);await match('generate',m1);
 eq(await scalar('select status from match where id=$1',[m1]),'locked');
-eq(await scalar('select min(rating_display)::int from rating_snapshot where match_id=$1',[m1]),0);
+eq(await scalar('select min(rating_display)::int from rating_snapshot where match_id=$1',[m1]),1);
 await admin();await db.query("update match set kick_off=now()-interval '1 hour' where id=$1",[m1]);
 await as(ids[1]);eq(await scalar('select can_access_chat($1)',[m1]),true);
 await db.query("insert into chat_message(match_id,user_id,content) values($1,$2,'After kickoff')",[m1,ids[1]]);checks++;
@@ -121,9 +146,9 @@ await deny('select match_action(\'move\',$1,$2,$3,$4)',[m1,ids[1],from,to]);
 await deny("insert into storage.objects(bucket_id,name) values('avatars',$1)",[ids[1]+'/avatar.png']);
 await db.query("insert into storage.objects(bucket_id,name) values('avatars',$1)",[ids[0]+'/avatar.png']);checks++;
 // Metadata can be edited, but the captured self-assessment remains immutable.
-await admin();await db.query(`update auth.users set raw_user_meta_data='{"initial_rating":5}' where id=$1`,[ids[0]]);
+await admin();await db.query(`update auth.users set raw_user_meta_data='{"initial_rating":10}' where id=$1`,[ids[0]]);
 await as(ids[0]);await db.query('select initialize_profile()');
-await admin();eq(await scalar('select rating_base from profile where user_id=$1',[ids[0]]),0);
+await admin();eq(await scalar('select rating_base from profile where user_id=$1',[ids[0]]),1);
 // Redesign: private ratings, invites, swaps, results, votes, stats, weekly repeat, onboarding, account deletion.
 await as(ids[2]);
 await deny('select rating from group_membership');
@@ -209,12 +234,13 @@ eq(await scalar('select count(*)::int from group_members($1) where user_id=$2',[
 {
   const fresh='00000000-0000-4000-8000-000000000099', named='00000000-0000-4000-8000-000000000098';
   await admin();
-  await db.query(`insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data) values($1,'fresh@example.test',now(),'{}'),($2,'named@example.test',now(),'{"display_name":"Named","initial_rating":2}')`,[fresh,named]);
+  await db.query(`insert into auth.users(id,email,email_confirmed_at,raw_user_meta_data) values($1,'fresh@example.test',now(),'{}'),($2,'named@example.test',now(),'{"display_name":"Named","initial_rating":4}')`,[fresh,named]);
   eq(await scalar('select onboarded from profile where user_id=$1',[fresh]),false);
   eq(await scalar('select display_name||onboarded from profile where user_id=$1',[named]),'Namedtrue');
-  await as(fresh); await db.query('select complete_onboarding($1,$2)',['Nick',4]);
+  await as(fresh); await deny('select complete_onboarding($1,$2)',['Nick',0]); await deny('select complete_onboarding($1,$2)',['Nick',11]);
+  await db.query('select complete_onboarding($1,$2)',['Nick',8]);
   await db.query('select complete_onboarding($1,$2)',['Other',1]);
-  await admin(); eq(await scalar('select display_name||rating_base from profile where user_id=$1',[fresh]),'Nick4');
+  await admin(); eq(await scalar('select display_name||rating_base from profile where user_id=$1',[fresh]),'Nick8');
 }
 // Membership removal cleans up upcoming locked squads; re-generation remains valid.
 {

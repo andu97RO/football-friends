@@ -1,6 +1,6 @@
 # 🚀 Deployment Guide
 
-This guide covers deploying FootyFriends to production, both as a web app on
+This guide covers deploying Football Friends to production, both as a web app on
 Vercel and as native apps on the App Store and Google Play.
 
 - [Web deployment (Vercel)](#web-deployment-vercel) — fastest path to users, no store review
@@ -41,7 +41,7 @@ without them fails at startup with `Missing Supabase environment variables`.
 | --- | --- |
 | `EXPO_PUBLIC_SUPABASE_URL` | `https://xyz.supabase.co` |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | `eyJ...` |
-| `EXPO_PUBLIC_APP_SCHEME` | `footy` |
+| `EXPO_PUBLIC_APP_SCHEME` | `footballfriends` |
 | `EXPO_PUBLIC_TIMEZONE` | `Europe/Bucharest` |
 
 Never give `SUPABASE_SERVICE_ROLE_KEY` the `EXPO_PUBLIC_` prefix. Anything with
@@ -62,6 +62,11 @@ in `lib/auth-utils.ts`), so previews authenticate against themselves. Note the
 path is `/callback`, not `/auth/callback`: expo-router omits the `(auth)` group
 from URLs.
 
+**Native builds only:** the web app and the installed PWA redirect to the https
+URLs above and never use a custom scheme. Once you ship an iOS/Android build,
+also add `footballfriends://**` (the URL scheme in `app.json`) to the redirect
+list, otherwise emailed sign-in links cannot return to the native app.
+
 ## Step 5: Post-deploy checks
 
 - [ ] Sign in, then hard-refresh on `/matches` — you should stay signed in
@@ -70,6 +75,44 @@ from URLs.
       confirm the dialog appears
 - [ ] Join a match in two browsers and confirm the spot counter updates live
 - [ ] Confirm the tab shows the favicon and the "Football Friends" title
+- [ ] Install it: on Android (Chrome) use the **Install app** button on Matches
+      or the browser menu; on iPhone (Safari) use Share → **Add to Home Screen**.
+      It should open full screen with the football icon
+- [ ] After one visit, switch to airplane mode and reopen the installed app: the
+      shell still opens (data needs a connection)
+
+## Installable web app (PWA)
+
+The web build is a progressive web app, so friends can pin it to their phone and
+use it like a regular app. The pieces:
+
+- `public/index.html`: the HTML template (manifest link, iOS home screen tags,
+  `viewport-fit=cover`). Expo adds `theme-color` from `app.json`
+- `public/manifest.webmanifest` and `public/icons/*`: name, colours and icons
+- `public/sw.js`: the service worker. Network-first for the app shell with an
+  offline fallback, cache-first for hashed files under `/_expo/static` and
+  `/assets`. Supabase requests are cross-origin and never touched. Bump
+  `VERSION` in it when the (unhashed) icons change
+- `lib/pwa.ts`: registers the worker in production builds only and powers the
+  install card on the Matches tab (`components/InstallHint.tsx`)
+- `vercel.json`: `no-cache` for `/sw.js` so updates roll out, and the manifest
+  content type. `npm run build:web` fails if any of these files is missing from
+  `dist/`
+
+Limitations to tell players about:
+
+- **iPhone login:** a home-screen app has separate storage from Safari, so a
+  magic link opened from Mail signs in Safari, not the pinned app. Sign in
+  inside the pinned app with the 6-digit email code or a password
+- **No push notifications** in the web app (see below)
+
+## Rating scale
+
+Ratings run from 1 to 10. Migration `20261031120000_rating_scale_10.sql` doubles
+every existing rating (0 becomes 1) and tightens the checks. Apply it at the
+same time as the web deploy: until both are live, a client on the old scale can
+send values the database rejects, or a new client can send values (6-10) an old
+database rejects.
 
 ## Known web limitations
 
@@ -136,7 +179,7 @@ the deployed URL.
 ### 2.1 Apple Developer Account
 
 1. Go to https://developer.apple.com
-2. Create App ID: `com.footyfriends.app`
+2. Create App ID: `com.footballfriends.app`
 3. Enable capabilities:
    - Push Notifications
    - Associated Domains
@@ -156,7 +199,7 @@ When building with EAS, push notification certificates are managed automatically
        "apps": [],
        "details": [
          {
-           "appID": "TEAM_ID.com.footyfriends.app",
+           "appID": "TEAM_ID.com.footballfriends.app",
            "paths": ["/auth/*", "/match/*", "/teams/*"]
          }
        ]
@@ -200,7 +243,7 @@ eas build --platform ios --profile production
 
 1. Go to https://play.google.com/console
 2. Create new app
-3. Set package name: `com.footyfriends.app`
+3. Set package name: `com.footballfriends.app`
 
 ### 3.2 Push Notifications Setup
 
@@ -223,7 +266,7 @@ When building with EAS, Firebase Cloud Messaging is configured automatically.
      "relation": ["delegate_permission/common.handle_all_urls"],
      "target": {
        "namespace": "android_app",
-       "package_name": "com.footyfriends.app",
+       "package_name": "com.footballfriends.app",
        "sha256_cert_fingerprints": ["YOUR_SHA256_FINGERPRINT"]
      }
    }]
@@ -312,7 +355,7 @@ eas secret:create --name EXPO_PUBLIC_EAS_PROJECT_ID --value your-eas-project-id
 ### iOS App Store
 
 **Required:**
-- App name: FootyFriends
+- App name: Football Friends
 - Subtitle: Organize 6-a-side football matches
 - Description: (See below)
 - Keywords: football, soccer, sports, organize, matches, teams
@@ -330,7 +373,7 @@ eas secret:create --name EXPO_PUBLIC_EAS_PROJECT_ID --value your-eas-project-id
 ### Google Play Store
 
 **Required:**
-- App name: FootyFriends
+- App name: Football Friends
 - Short description: Organize 6-a-side football matches
 - Full description: (See below)
 - Screenshots: Phone and tablet
@@ -341,7 +384,7 @@ eas secret:create --name EXPO_PUBLIC_EAS_PROJECT_ID --value your-eas-project-id
 
 **Sample Description:**
 ```
-FootyFriends helps organize weekly 6-a-side football matches for your group.
+Football Friends helps organize weekly 6-a-side football matches for your group.
 
 FEATURES:
 • First-come-first-served signup system

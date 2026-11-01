@@ -13,7 +13,7 @@ import { showToast } from '@/lib/toast';
 import { AuthShell } from '@/components/AuthShell';
 import { Button, Card, LoadingState, Txt } from '@/components/ui';
 
-/** M8: footyfriends.app/join/CODE (or footy://join/CODE) joins the group without search or approval. */
+/** M8: footballfriends.app/join/CODE (or footballfriends://join/CODE) joins the group without search or approval. */
 export default function JoinScreen() {
   const params = useLocalSearchParams<{ code: string }>();
   const code = parseInviteCode(params.code ?? '');

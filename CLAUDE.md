@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-FootyFriends is a React Native mobile app for organizing weekly 6-a-side football matches with:
+Football Friends is a React Native mobile app for organizing weekly 6-a-side football matches with:
 - FCFS (First Come First Served) signup system with waitlist
 - Automatic waitlist promotion when spots open up
 - Automated team balancing based on player ratings
@@ -63,7 +63,7 @@ Routes are defined by the file structure in `app/`:
 - `app/match/[id]/` - Match detail (index), chat, result (organisers record score + attendance)
 - `app/teams/[id].tsx` - Teams view and editing (swap, undo, re-generate)
 - `app/group/[id].tsx` - Group page / Manage group (invite link, requests, members, ratings)
-- `app/join/[code].tsx` - Invite link landing (`/join/CODE`, `footy://join/CODE`)
+- `app/join/[code].tsx` - Invite link landing (`/join/CODE`, `footballfriends://join/CODE`)
 - `app/onboarding.tsx` - Name + self-rating for magic-link / OAuth sign-ups
 - `app/_layout.tsx` - Root layout: fonts, language, QueryClientProvider, auth listeners, Alert/Toast/Offline hosts
 - `app/index.tsx` - Entry point with auth check
@@ -115,9 +115,9 @@ Routes are defined by the file structure in `app/`:
 
 ### Database Schema (supabase/schema.sql)
 Key tables:
-- `profile` - `display_name`, `rating_base` (0-5 self-rating from sign-up), `avatar_url`, `push_token`, `notify_*` preferences, `locale`, `onboarded`
+- `profile` - `display_name`, `rating_base` (1-10 self-rating from sign-up), `avatar_url`, `push_token`, `notify_*` preferences, `locale`, `onboarded`
 - `club` - Groups with `organizer_id`, `invite_code`, `listed`
-- `group_membership` - Role (owner/admin/member), status (pending/approved), group `rating` (0-5)
+- `group_membership` - Role (owner/admin/member), status (pending/approved), group `rating` (1-10)
 - `match` - `status`, `kick_off`, `signup_open_at`, `spots`, `teams_count`, `venue_name`, `venue_url`, `fee_amount`, `fee_currency`, `payment_note`, `repeat_weekly`
 - `signup` - `state` (confirmed/waitlist/cancelled), `queue_pos`, `paid`, `attended`
 - `team` / `team_assignment` - Generated teams (`team.score` after the match)
@@ -134,11 +134,15 @@ Key tables:
 - Sent for: waitlist promotion (`cancel-signup`), teams picked (`lock-and-generate`), new match (`create-match`), chat (`notify-chat`)
 - Edge Functions share `_shared/common.ts`; deploy each function together with that file
 
+### Installable web app (PWA)
+- `public/` holds the HTML template, `manifest.webmanifest`, `sw.js` (service worker) and `icons/`; `lib/pwa.ts` registers the worker (production only) and drives the install card (`components/InstallHint.tsx`)
+- Playwright blocks service workers by default (`playwright.config.ts`); only `e2e/pwa.spec.ts` turns them on
+
 ### Deep Linking
-- Scheme: `footy://` (configured in app.json)
+- Scheme: `footballfriends://` (configured in app.json)
 - Magic link callback: `app/(auth)/callback.tsx`
 - Production: Requires Universal Links (iOS) + App Links (Android)
-- Test with: `npx uri-scheme open footy://match/123 --ios`
+- Test with: `npx uri-scheme open footballfriends://match/123 --ios`
 
 ### Platform-Specific Code
 - Polyfills required for React Native URL API (imported in `lib/polyfills.ts`)
@@ -149,7 +153,7 @@ Key tables:
 
 ### Authentication Flow
 1. User enters email → Supabase sends magic link
-2. User clicks link → opens `footy://auth/callback?...`
+2. User clicks link → opens `footballfriends://auth/callback?...`
 3. `app/(auth)/callback.tsx` exchanges token with Supabase
 4. Session stored in AsyncStorage (automatic via Supabase client)
 5. Redirect to `/(tabs)/matches`
@@ -204,7 +208,7 @@ Required in `.env`:
 ```bash
 EXPO_PUBLIC_SUPABASE_URL=https://xyz.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-EXPO_PUBLIC_APP_SCHEME=footy
+EXPO_PUBLIC_APP_SCHEME=footballfriends
 EXPO_PUBLIC_TIMEZONE=Europe/Bucharest
 ```
 

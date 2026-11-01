@@ -6,7 +6,7 @@ migration or deployment status.
 
 ## Project and commands
 
-FootyFriends is an Expo SDK 54 / React Native 0.81.5 app with a web SPA,
+Football Friends is an Expo SDK 54 / React Native 0.81.5 app with a web SPA,
 TypeScript strict mode, expo-router, Supabase, TanStack Query, and Zustand.
 It supports invite-based groups, FCFS match signups, automatic waitlist
 promotion, balanced teams, chat, match results, and English/Romanian copy.
@@ -78,7 +78,7 @@ Use `lib/alert.ts` for dialogs and `lib/toast.ts` for transient feedback.
   scheduled. Leaving/removing a group member also cleans up their signups,
   squads, and snapshots. Locked matches do not promote into drawn teams.
 - Group ownership/admin status comes from approved `group_membership` roles,
-  not the legacy global `profile.is_admin` flag. Ratings are per-group, 0–5.
+  not the legacy global `profile.is_admin` flag. Ratings are per-group, 1–10.
   Other players' ratings are available only through authorized group RPCs;
   team averages use `team_summary`.
 - Groups are invite-only by default; only listed groups appear in search.
@@ -120,7 +120,7 @@ an ordered migration or evidence that cleanup ran in production.
 - Notifications cover waitlist promotion, teams, new matches, and chat.
   Automatic draws enqueue teams notifications in an outbox; feed/detail
   loads wake `notify-teams`. Delivery is at least once, with retry leases.
-- URL scheme is `footy://`. `getAuthCallbackUrl()` builds `/callback` on web
+- URL scheme is `footballfriends://`. `getAuthCallbackUrl()` builds `/callback` on web
   from the current origin and the native callback URL via Expo Linking.
   Do not add `/auth` to callback paths: `(auth)` is a route group only.
 - Invite links use `/join/CODE`; native sharing uses `EXPO_PUBLIC_WEB_URL`.
