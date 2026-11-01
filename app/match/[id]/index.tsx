@@ -13,7 +13,7 @@ import { confirm, showAlert } from '@/lib/alert';
 import { showToast } from '@/lib/toast';
 import { shareToWhatsApp, useInvalidateMatch, useJoinLeave } from '@/lib/matches';
 import { Match, MatchSummary, Signup, Team } from '@/lib/types';
-import { appUrl, firstName, teamLabel, formatMoney, getMatchStatus, isSignupWindowOpen, relativeTime, teamsPickedAt } from '@/lib/utils';
+import { appUrl, teamLabel, formatMoney, getMatchStatus, isSignupWindowOpen, relativeTime, teamsPickedAt } from '@/lib/utils';
 import { VenueLine } from '@/components/MatchCard';
 import { EditMatchSheet, OrganiserSheet, PaymentSheet, SquadPlayer, VoteSheet } from '@/components/match/sheets';
 import { Button, Card, ErrorState, IconButton, LoadingState, Screen, ScreenHeader, SectionHeader, StatusChip, Txt } from '@/components/ui';
@@ -168,7 +168,7 @@ export default function MatchDetailScreen() {
       `⚽ ${formatDate.day(match.kick_off, locale)} · ${formatDate.time(match.kick_off, locale)}${match.venue_name ? ` · ${match.venue_name}` : ''}`,
       full ? t('share.full', { count: waitlist.length }) : t('share.spotsLeft', { count: spotsLeft }),
       '',
-      `${t('match.squad')}: ${players.map((p) => firstName(p.display_name)).join(', ') || '—'}`,
+      `${t('match.squad')}: ${players.map((p) => p.display_name).join(', ') || '—'}`,
       '',
       appUrl(`/match/${match.id}`),
     ];

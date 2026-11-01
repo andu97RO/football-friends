@@ -1,5 +1,5 @@
 /**
- * FootyFriends design tokens: dark pitch palette with a lime accent.
+ * Football Friends design tokens: dark pitch palette with a lime accent.
  *
  * Lime is reserved for the one primary action on a screen, the active tab and
  * "you" markers. Status, selection and chat use tints or neutral colours so the

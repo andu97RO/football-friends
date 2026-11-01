@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
-const KEY = 'footy.pendingInvite';
+const KEY = 'footballfriends.pendingInvite';
 
 /**
  * M8: an invite link opened before signing in is remembered, so the player

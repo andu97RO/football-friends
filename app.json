@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "Football Friends",
-    "slug": "footyfriends",
+    "slug": "footballfriends",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "footy",
+    "scheme": "footballfriends",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/splash.png",
@@ -17,9 +17,9 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.footyfriends.app",
+      "bundleIdentifier": "com.footballfriends.app",
       "associatedDomains": [
-        "applinks:footyfriends.app"
+        "applinks:footballfriends.app"
       ],
       "infoPlist": {
         "CFBundleLocalizations": [
@@ -29,7 +29,7 @@
       }
     },
     "android": {
-      "package": "com.footyfriends.app",
+      "package": "com.footballfriends.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0E0B"
@@ -41,10 +41,10 @@
           "data": [
             {
               "scheme": "https",
-              "host": "footyfriends.app"
+              "host": "footballfriends.app"
             },
             {
-              "scheme": "footy"
+              "scheme": "footballfriends"
             }
           ],
           "category": [
@@ -59,7 +59,7 @@
       "output": "single",
       "favicon": "./assets/favicon.png",
       "name": "Football Friends",
-      "shortName": "Footy",
+      "shortName": "Football Friends",
       "description": "Organise your weekly 6-a-side football matches",
       "themeColor": "#0A0E0B",
       "backgroundColor": "#0A0E0B"

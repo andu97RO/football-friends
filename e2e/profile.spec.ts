@@ -3,7 +3,7 @@ import { test, expect, login } from './fixtures';
 test('P1 P2 P5: one rating format, edit profile without a phantom "Remove photo"', async ({ page, backend }) => {
   await login(page);
   await page.goto('/profile');
-  await expect(page.getByTestId('rating-card')).toContainText('4/5');
+  await expect(page.getByTestId('rating-card')).toContainText('8/10');
   await expect(page.getByText('+0.2 over the last 5 games')).toHaveCount(0);
   await page.getByTestId('edit-profile').click();
   await expect(page.getByText('Remove photo')).toHaveCount(0);

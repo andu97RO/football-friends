@@ -50,7 +50,7 @@ async function seedUsers(count: number = 20) {
   for (let i = 1; i <= count; i++) {
     const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
     const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
-    const email = `player${i}@footytest.com`;
+    const email = `player${i}@footballfriends.test`;
     const password = 'Test123!'; // Simple password for testing
 
     // Create auth user
@@ -71,7 +71,7 @@ async function seedUsers(count: number = 20) {
     console.log(`✓ Created user: ${email} (${firstName} ${lastName})`);
 
     // Create profile
-    const rating = Math.floor(Math.random() * 5) + 1; // Random rating 1-5
+    const rating = Math.floor(Math.random() * 10) + 1; // Random rating 1-10
     const { error: profileError } = await supabase
       .from('profile')
       .insert({
@@ -102,7 +102,7 @@ async function seedUsers(count: number = 20) {
   });
 
   console.log('\n=== Quick Login Info ===');
-  console.log('Email: player1@footytest.com');
+  console.log('Email: player1@footballfriends.test');
   console.log('Password: Test123!');
 
   return users;

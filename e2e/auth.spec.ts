@@ -96,11 +96,11 @@ test('A3 A4 A5: sign-up asks for a name, one password and a described rating', a
   await page.getByTestId('password-input').fill('password123');
   await page.getByTestId('create-account-button').click();
   await expect(page.getByText('Pick the skill level that fits you best.')).toBeVisible();
-  await page.getByTestId('rating-3').click();
-  await expect(page.getByText('3 · Regular, plays every week')).toBeVisible();
+  await page.getByTestId('rating-6').click();
+  await expect(page.getByText('6 · Regular, plays every week')).toBeVisible();
   await page.getByTestId('create-account-button').click();
   await expect(page.getByTestId('check-inbox-screen')).toBeVisible();
-  expect(backend.requests.find((r) => r.path.endsWith('/signup'))?.body.data).toEqual({ display_name: 'Nick', initial_rating: 3 });
+  expect(backend.requests.find((r) => r.path.endsWith('/signup'))?.body.data).toEqual({ display_name: 'Nick', initial_rating: 6 });
 });
 
 test('A6: forgot password asks for the email, then confirms', async ({ page, backend }) => {
@@ -135,10 +135,10 @@ test('A3: players without a name are onboarded once', async ({ page, backend }) 
   await login(page).catch(() => undefined);
   await expect(page.getByTestId('onboarding-screen')).toBeVisible();
   await page.getByTestId('name-input').fill('Nick');
-  await page.getByTestId('rating-2').click();
+  await page.getByTestId('rating-10').click();
   await page.getByTestId('onboarding-continue').click();
   await expect(page).toHaveURL(/matches/);
-  expect(backend.requests.find((r) => r.path.endsWith('/complete_onboarding'))?.body).toEqual({ name: 'Nick', rating: 2 });
+  expect(backend.requests.find((r) => r.path.endsWith('/complete_onboarding'))?.body).toEqual({ name: 'Nick', rating: 10 });
 });
 
 test('email OTP creates a missing profile and sends a new player through onboarding and the saved invite', async ({ page, backend }) => {
@@ -153,7 +153,7 @@ test('email OTP creates a missing profile and sends a new player through onboard
   await expect(page.getByTestId('onboarding-screen')).toBeVisible();
   expect(backend.requests.some((r) => r.path.endsWith('/initialize_profile'))).toBe(true);
   await page.getByTestId('name-input').fill('New player');
-  await page.getByTestId('rating-3').click();
+  await page.getByTestId('rating-6').click();
   await page.getByTestId('onboarding-continue').click();
   await expect(page.getByTestId('join-screen')).toBeVisible();
   await page.getByTestId('accept-invite').click();

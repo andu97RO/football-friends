@@ -1,16 +1,16 @@
-# ⚽ FootyFriends - Native Mobile App
+# ⚽ Football Friends - Native Mobile App
 
 A React Native mobile application for organizing weekly 6-a-side football matches with FCFS (First Come First Served) signups, automated team balancing, and mobile push notifications.
 
 ## 📋 Overview
 
-FootyFriends helps organize private weekly football matches with:
+Football Friends helps organize private weekly football matches with:
 
 - **18 player spots** with FCFS signup system
 - **Waitlist management** with automatic promotion
 - **Team generation** - 3 balanced teams of 6 players each
 - **Team lock at T-60 minutes** before kickoff
-- **Player ratings** (1-5 scale) for fair team balancing
+- **Player ratings** (1-10 scale) for fair team balancing
 - **Mobile push notifications** via OneSignal
 - **Magic link authentication** (no passwords)
 - **Real-time countdown timers**
@@ -33,7 +33,7 @@ FootyFriends helps organize private weekly football matches with:
 - ✅ FCFS signup system with server-side validation
 - ✅ Waitlist with auto-promotion on cancellation
 - ✅ Team lock and generation at T-60 minutes
-- ✅ Player profiles with 1-5 rating system
+- ✅ Player profiles with 1-10 rating system
 - ✅ Mobile push notifications for key events
 - ✅ Match countdown timers
 - ✅ Audit logging for admin actions
@@ -75,7 +75,7 @@ FootyFriends helps organize private weekly football matches with:
    ```env
    EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
    EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-   EXPO_PUBLIC_APP_SCHEME=footy
+   EXPO_PUBLIC_APP_SCHEME=footballfriends
    EXPO_PUBLIC_TIMEZONE=Europe/Bucharest
    EXPO_PUBLIC_EAS_PROJECT_ID=your-eas-project-id (optional)
    ```
@@ -187,7 +187,7 @@ football-friends/
 
 1. User enters email address
 2. Supabase sends magic link email
-3. User clicks link → opens the app via deep link (`footy://callback`) or, on web, `https://<your-domain>/callback`
+3. User clicks link → opens the app via deep link (`footballfriends://callback`) or, on web, `https://<your-domain>/callback`
 4. App exchanges token with Supabase
 5. Session stored in AsyncStorage
 6. User redirected to Matches screen
@@ -332,7 +332,7 @@ Create multiple test accounts and simulate concurrent signups at open time to ve
 |----------|-------------|---------|
 | `EXPO_PUBLIC_SUPABASE_URL` | Supabase project URL | `https://abc.supabase.co` |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key | `eyJ...` |
-| `EXPO_PUBLIC_APP_SCHEME` | Deep link scheme | `footy` |
+| `EXPO_PUBLIC_APP_SCHEME` | Deep link scheme | `footballfriends` |
 | `EXPO_PUBLIC_TIMEZONE` | Display timezone | `Europe/Bucharest` |
 | `EXPO_PUBLIC_EAS_PROJECT_ID` | EAS project ID (optional) | `abc123...` |
 
@@ -350,7 +350,7 @@ Private - All Rights Reserved
 - Verify `scheme` in `app.json` matches `EXPO_PUBLIC_APP_SCHEME`
 - For iOS: Check Associated Domains entitlement
 - For Android: Check intent filters in `app.json`
-- Test with: `npx uri-scheme open footy://match/123 --ios`
+- Test with: `npx uri-scheme open footballfriends://match/123 --ios`
 
 ### Supabase Connection Issues
 - Verify URL and anon key in `.env`

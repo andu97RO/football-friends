@@ -1,6 +1,6 @@
 # Animation review — 15 October 2026
 
-Applied Emil Kowalski's review-animations → improve-animations → animate-expo workflow to FootyFriends (Expo SDK 54 / Reanimated 4). Baseline: cf2db85. Implementation uses existing dependencies.
+Applied Emil Kowalski's review-animations → improve-animations → animate-expo workflow to Football Friends (Expo SDK 54 / Reanimated 4). Baseline: cf2db85. Implementation uses existing dependencies.
 
 ## Findings and resolution
 

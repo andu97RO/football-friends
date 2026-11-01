@@ -11,6 +11,7 @@ import { useT } from '@/lib/i18n';
 import { useJoinLeave } from '@/lib/matches';
 import { FeedMatch } from '@/lib/types';
 import { getMatchStatus } from '@/lib/utils';
+import InstallHint from '@/components/InstallHint';
 import { MatchRow, OpenMatchCard } from '@/components/MatchCard';
 import { Button, EmptyState, ErrorState, IconButton, LoadingState, Screen, ScreenHeader, SectionHeader } from '@/components/ui';
 
@@ -122,6 +123,7 @@ export default function MatchesScreen() {
       testID="matches-screen"
       refreshControl={<RefreshControl refreshing={feed.isRefetching} onRefresh={() => feed.refetch()} tintColor={theme.colors.primary} />}
     >
+      <InstallHint />
       {sections.length === 0 ? (
         <EmptyState icon="football-outline" title={t('matches.emptyTitle')} body={groups.adminOf.length ? t('matches.emptyAdmin') : t('matches.emptyBody')}>
           {groups.adminOf.length > 0 && <Button title={t('newMatch.title')} icon="add" onPress={() => router.push('/match/new')} />}

@@ -1,7 +1,7 @@
-# 🎨 Figma Design Brief: FootyFriends Mobile App
+# 🎨 Figma Design Brief: Football Friends Mobile App
 
 ## 📱 Project Overview
-**FootyFriends** is a React Native mobile application for organizing weekly 6-a-side football matches with a First-Come-First-Served (FCFS) signup system, automated team balancing, and push notifications.
+**Football Friends** is a React Native mobile application for organizing weekly 6-a-side football matches with a First-Come-First-Served (FCFS) signup system, automated team balancing, and push notifications.
 
 **Target Platforms:** iOS & Android (Mobile-first design)  
 **Design Style:** Modern, clean, sports-focused with green accent color (#10b981)
@@ -43,7 +43,7 @@
 
 #### **Login Screen** (`login.tsx`)
 - **Header Section:**
-  - ⚽ FootyFriends logo/icon (large, centered)
+  - ⚽ Football Friends logo/icon (large, centered)
   - Tagline: "Organize your weekly 6-a-side matches"
   
 - **Form Section:**
@@ -304,7 +304,7 @@ Display in rows with label-value pairs:
 ## 🏅 Branding Elements
 
 - **App Icon:** Should feature ⚽ football/soccer theme with green accent
-- **Splash Screen:** FootyFriends branding with app icon
+- **Splash Screen:** Football Friends branding with app icon
 - **Typography:** Clean, modern sans-serif (SF Pro for iOS, Roboto for Android)
 - **Imagery:** Consider adding subtle football field patterns or textures as background elements
 
@@ -371,7 +371,7 @@ Display in rows with label-value pairs:
 ### **Team Generation:**
 - Automatic team balancing at T-60 minutes before kickoff
 - 3 teams of 6 players each
-- Player ratings (1-5 scale)
+- Player ratings (1-10 scale)
 - Serpentine draft algorithm for fair teams
 
 ### **User Features:**
@@ -621,7 +621,7 @@ Before finalizing the design, ensure:
 
 ## 🎨 Final Thoughts
 
-FootyFriends is a time-sensitive, action-oriented app where users need to quickly:
+Football Friends is a time-sensitive, action-oriented app where users need to quickly:
 1. See upcoming matches
 2. Check countdown timers
 3. Understand their signup status

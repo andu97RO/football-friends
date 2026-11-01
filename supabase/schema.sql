@@ -1,5 +1,5 @@
--- FootyFriends Database Schema
--- This file contains the complete database schema for the FootyFriends app
+-- Football Friends Database Schema
+-- This file contains the complete database schema for the Football Friends app
 
 -- Enable UUID extension
 create extension if not exists "uuid-ossp";
@@ -8,7 +8,7 @@ create extension if not exists "uuid-ossp";
 create table if not exists public.profile (
   user_id uuid primary key references auth.users(id) on delete cascade,
   display_name text not null,
-  rating_base smallint not null default 3 check (rating_base between 1 and 5),
+  rating_base smallint not null default 6 check (rating_base between 1 and 10),
   created_at timestamptz not null default now()
 );
 
@@ -61,7 +61,7 @@ create table if not exists public.team_assignment (
 create table if not exists public.rating_snapshot (
   user_id uuid references auth.users(id),
   match_id uuid references public.match(id) on delete cascade,
-  rating_display smallint not null check (rating_display between 1 and 5),
+  rating_display smallint not null check (rating_display between 1 and 10),
   elo_before numeric,
   elo_after numeric,
   primary key (user_id, match_id)

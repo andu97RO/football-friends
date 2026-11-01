@@ -22,6 +22,7 @@ import { registerForPushNotificationsAsync, setupNotificationHandler } from '@/l
 import { isVerifiedSession } from '@/lib/auth-utils';
 import { ensureProfile } from '@/lib/ensure-profile';
 import { loadLocalePreference, useLocaleStore } from '@/lib/i18n';
+import { registerServiceWorker } from '@/lib/pwa';
 
 // Ignore specific warnings
 LogBox.ignoreLogs(['Warning: ...']); // Add specific warnings to ignore
@@ -50,6 +51,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     loadLocalePreference().finally(() => setLocaleReady(true));
+    registerServiceWorker();
   }, []);
 
   useEffect(() => {

@@ -13,6 +13,8 @@ export default defineConfig({
   reporter: 'html',
   use: {
     baseURL,
+    // The service worker would otherwise cache pages between tests; the PWA spec turns it back on.
+    serviceWorkers: 'block',
     trace: 'on-first-retry',
   },
   projects: [

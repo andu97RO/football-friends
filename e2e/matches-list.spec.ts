@@ -37,7 +37,7 @@ test('M8: a player with no group is offered an invite code first', async ({ page
   await login(page);
   await expect(page.getByTestId('matches-no-group')).toBeVisible();
   await page.getByTestId('empty-join-code').click();
-  await page.getByTestId('invite-code-input').fill('https://footyfriends.app/join/ab12cd34');
+  await page.getByTestId('invite-code-input').fill('https://footballfriends.app/join/ab12cd34');
   await expect(page.getByText('Thursday 6-a-side')).toBeVisible();
   await page.getByTestId('join-code-button').click();
   await expect.poll(() => backend.memberships.some((m) => m.club_id === 'club1' && m.status === 'approved')).toBe(true);

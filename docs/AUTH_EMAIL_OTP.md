@@ -60,7 +60,7 @@ utilizator nou să finalizeze mai întâi onboarding-ul.
 
 1. Pentru **Magic Link**, setează corpul din
    `supabase/templates/magic_link.html` și un subiect precum
-   `FootyFriends — Cod de conectare / Sign-in code`.
+   `Football Friends — Cod de conectare / Sign-in code`.
 2. Pentru **Confirm signup**, setează corpul din
    `supabase/templates/confirmation.html`. Acesta include codul pentru prima
    autentificare OTP și păstrează linkul pentru înregistrarea cu parolă.

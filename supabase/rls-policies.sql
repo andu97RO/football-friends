@@ -1,4 +1,4 @@
--- FootyFriends Row Level Security (RLS) Policies
+-- Football Friends Row Level Security (RLS) Policies
 -- This file contains all RLS policies for securing data access
 
 -- Enable RLS on all tables

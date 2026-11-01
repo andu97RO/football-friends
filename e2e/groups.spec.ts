@@ -23,20 +23,20 @@ test('G2: a request is "Pending" in one place and can be cancelled', async ({ pa
 });
 
 test('G4 G5 G6: requests badge, self-rating wording, rating editor with undo', async ({ page, backend }) => {
-  backend.memberships.push({ club_id: 'club1', user_id: 'applicant', role: 'member', status: 'pending', rating: 3, self_rating: 3, created_at: new Date().toISOString() });
+  backend.memberships.push({ club_id: 'club1', user_id: 'applicant', role: 'member', status: 'pending', rating: 6, self_rating: 6, created_at: new Date().toISOString() });
   await login(page);
   await expect(page.getByRole('tab', { name: 'Groups, 1' })).toBeVisible();
   await page.goto('/group/club1');
-  await expect(page.getByTestId('request-applicant')).toContainText('Self-rated 3/5');
+  await expect(page.getByTestId('request-applicant')).toContainText('Self-rated 6/10');
   await page.getByTestId('approve-applicant').click();
   await expect.poll(() => backend.memberships.find((m) => m.user_id === 'applicant')?.status).toBe('approved');
   await page.getByTestId('member-p2').click();
   await expect(page.getByTestId('member-sheet')).toContainText('Make admin');
-  await page.getByTestId('member-sheet').getByTestId('rating-5').click();
+  await page.getByTestId('member-sheet').getByTestId('rating-9').click();
   await page.getByTestId('save-rating').click();
-  await expect.poll(() => backend.memberships.find((m) => m.user_id === 'p2')?.rating).toBe(5);
+  await expect.poll(() => backend.memberships.find((m) => m.user_id === 'p2')?.rating).toBe(9);
   await page.getByTestId('toast-action').click();
-  await expect.poll(() => backend.memberships.find((m) => m.user_id === 'p2')?.rating).toBe(3);
+  await expect.poll(() => backend.memberships.find((m) => m.user_id === 'p2')?.rating).toBe(6);
 });
 
 test('M8: organisers see an invite link to share', async ({ page, backend }) => {
