@@ -119,8 +119,9 @@ database rejects.
 - **Push notifications do not work on web.** Expo Push is native-only, so web
   users receive no "You're In!" waitlist promotion notification. Either add Web
   Push with VAPID keys or send those notifications by email from an Edge Function.
-- **The build is a single 3.3 MB bundle.** There is no code splitting yet, which
-  is slow on a cold mobile connection.
+- **The app shell is about 3.3 MB of JavaScript.** Since Expo SDK 56 each route
+  is its own chunk, but the shared code (`__common` + `entry`) still loads up
+  front, which is slow on a cold mobile connection.
 - **Prerendering (`web.output: "static"`) does not work yet.** The export fails
   with `ReferenceError: window is not defined` because the Supabase client reads
   AsyncStorage during the Node render pass. SPA output is the supported mode.
@@ -148,335 +149,217 @@ the deployed URL.
 
 # Native Deployment (EAS)
 
-## Prerequisites Checklist
+The phone apps are built in the cloud with EAS (Expo Application Services). No
+Mac or Android Studio is needed. Do the steps **in this order**: some values
+from later steps (Team ID, signing fingerprints) go back into files from earlier
+ones.
 
-- [ ] Apple Developer Account ($99/year)
-- [ ] Google Play Developer Account ($25 one-time)
-- [ ] Supabase project configured
-- [ ] EAS CLI installed (`npm install -g eas-cli`)
-- [ ] Expo account created
-- [ ] App icons and splash screens ready (1024x1024)
-- [ ] Privacy policy URL published
+What is already in the repository:
 
-## Step 1: Configure EAS (native)
+| Piece | Where |
+| --- | --- |
+| Bundle ID / package `com.footballfriends.app`, URL scheme `footballfriends` | `app.json` |
+| Sign in with Apple (native sheet on iOS), photo-permission text, notification icon, no export-compliance prompt | `app.json` plugins, `lib/oauth.ts` |
+| `google-services.json` picked up from EAS or the project root | `app.config.js` |
+| Build profiles, auto-incremented build numbers, EAS environments | `eas.json` |
+| Link verification files for `football-friends-seven.vercel.app` | `public/.well-known/` |
+| In-app account deletion, privacy policy, terms | Profile → Delete account, `public/privacy.html`, `public/terms.html` |
 
-1. **Login to Expo**
-   ```bash
-   eas login
-   ```
+## Step 0: Accounts and tools
 
-2. **Initialize EAS**
-   ```bash
-   eas build:configure
-   ```
+- [ ] **Apple Developer Program**, $99/year: https://developer.apple.com/programs/enroll/.
+      Individual enrolment is quickest. An organisation needs a D-U-N-S number
+      and shows the company name on the App Store.
+- [ ] **Google Play Console**, $25 once: https://play.google.com/console/signup.
+      New *personal* accounts must run a **closed test with at least 12 testers
+      for 14 days** before they can publish to production. Start that early.
+- [ ] **Expo account** (free): https://expo.dev/signup
+- [ ] **Firebase project** (free), for Android push: https://console.firebase.google.com
+- [ ] Node 22 and the EAS CLI:
+  ```bash
+  npm install -g eas-cli
+  eas login
+  ```
 
-3. **Update `app.json` with production details**
-   - Update `expo.extra.eas.projectId` with your Expo project ID
-   - Verify bundle identifiers are correct
-
-## Step 2: iOS Setup
-
-### 2.1 Apple Developer Account
-
-1. Go to https://developer.apple.com
-2. Create App ID: `com.footballfriends.app`
-3. Enable capabilities:
-   - Push Notifications
-   - Associated Domains
-
-### 2.2 Push Notifications Setup
-
-Expo handles push notifications automatically through EAS. No manual APNs configuration needed for Expo Push Notifications!
-
-When building with EAS, push notification certificates are managed automatically.
-
-### 2.3 Universal Links (Deep Linking)
-
-1. Create `apple-app-site-association` file on your domain:
-   ```json
-   {
-     "applinks": {
-       "apps": [],
-       "details": [
-         {
-           "appID": "TEAM_ID.com.footballfriends.app",
-           "paths": ["/auth/*", "/match/*", "/teams/*"]
-         }
-       ]
-     }
-   }
-   ```
-
-2. Host at `https://yourdomain.com/.well-known/apple-app-site-association`
-
-3. Update `app.json`:
-   ```json
-   {
-     "ios": {
-       "associatedDomains": ["applinks:yourdomain.com"]
-     }
-   }
-   ```
-
-### 2.4 Build iOS App
+## Step 1: Link the project to EAS
 
 ```bash
-eas build --platform ios --profile production
+eas init
 ```
 
-### 2.5 Submit to App Store
+This creates the project on expo.dev and writes `expo.extra.eas.projectId` into
+`app.json`. **Commit that change**: push notifications use the project ID, and
+`lib/notifications.ts` logs an error and skips push registration without it.
 
-1. **Via EAS Submit (recommended)**
-   ```bash
-   eas submit --platform ios
-   ```
-
-2. **Manual submission**
-   - Download IPA from EAS dashboard
-   - Upload to App Store Connect via Transporter
-   - Configure app listing, screenshots, description
-   - Submit for review
-
-## Step 3: Android Setup
-
-### 3.1 Google Play Console
-
-1. Go to https://play.google.com/console
-2. Create new app
-3. Set package name: `com.footballfriends.app`
-
-### 3.2 Push Notifications Setup
-
-Expo handles push notifications automatically through EAS. No manual FCM configuration needed for Expo Push Notifications!
-
-When building with EAS, Firebase Cloud Messaging is configured automatically.
-
-### 3.3 Android App Links (Deep Linking)
-
-1. Generate SHA-256 fingerprint:
-   ```bash
-   eas credentials
-   # Select Android → Production → Keystore
-   # Note the SHA-256 fingerprint
-   ```
-
-2. Create `assetlinks.json` on your domain:
-   ```json
-   [{
-     "relation": ["delegate_permission/common.handle_all_urls"],
-     "target": {
-       "namespace": "android_app",
-       "package_name": "com.footballfriends.app",
-       "sha256_cert_fingerprints": ["YOUR_SHA256_FINGERPRINT"]
-     }
-   }]
-   ```
-
-3. Host at `https://yourdomain.com/.well-known/assetlinks.json`
-
-### 3.4 Build Android App
+Then add the public build settings to the EAS environments. They are baked into
+the app at build time, like on Vercel:
 
 ```bash
-eas build --platform android --profile production
+for ENV in production preview development; do
+  eas env:create --environment $ENV --name EXPO_PUBLIC_SUPABASE_URL      --value https://exqtxouswbcunrgxftzr.supabase.co --visibility plaintext
+  eas env:create --environment $ENV --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <anon key>                              --visibility sensitive
+  eas env:create --environment $ENV --name EXPO_PUBLIC_APP_SCHEME        --value footballfriends                         --visibility plaintext
+  eas env:create --environment $ENV --name EXPO_PUBLIC_TIMEZONE          --value Europe/Bucharest                        --visibility plaintext
+  eas env:create --environment $ENV --name EXPO_PUBLIC_WEB_URL           --value https://football-friends-seven.vercel.app --visibility plaintext
+done
 ```
 
-### 3.5 Submit to Google Play
+Never add `SUPABASE_SERVICE_ROLE_KEY` here. Everything in an app binary can be extracted.
 
-1. **Via EAS Submit (recommended)**
+## Step 2: iOS signing and App Store Connect
+
+1. In App Store Connect → **Apps → +**, create the app: name *Football Friends*,
+   bundle ID `com.footballfriends.app`, SKU `footballfriends`, primary language
+   English. If the bundle ID is taken, choose another and change `ios.bundleIdentifier`
+   in `app.json`, the AASA file and the Supabase Apple client ID to match.
+2. Let EAS create the certificates and the push key:
    ```bash
-   eas submit --platform android
+   eas credentials -p ios
+   # production → set up everything EAS offers: Distribution Certificate,
+   # Provisioning Profile and "Push Notifications: Apple Push Key"
    ```
+   EAS turns on the Push Notifications, Sign in with Apple and Associated
+   Domains capabilities for the bundle ID from `app.json`.
+3. Find your **Team ID** (developer.apple.com → Membership details) and replace
+   `APPLE_TEAM_ID` (twice) in `public/.well-known/apple-app-site-association`.
 
-2. **Manual submission**
-   - Download AAB from EAS dashboard
-   - Upload to Play Console
-   - Create store listing with screenshots, description
-   - Configure content rating
-   - Submit for review
+## Step 3: Android push (Firebase) and signing
 
-## Step 4: Supabase Edge Functions Deployment
-
-1. **Install Supabase CLI**
+1. In Firebase, **Add app → Android** with package `com.footballfriends.app`
+   and download `google-services.json`. Do not commit it; it is git-ignored.
    ```bash
-   npm install -g supabase
+   eas env:create --environment production --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret
+   eas env:create --environment preview    --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility secret
    ```
-
-2. **Login**
+   `app.config.js` passes it to the build. Keep a copy in the project root for local builds.
+2. In Firebase → Project settings → **Service accounts → Generate new private key**.
+   Upload that JSON so Expo can send pushes through FCM V1:
    ```bash
-   supabase login
+   eas credentials -p android
+   # production → Google Service Account → "Manage your Google Service Account Key for Push Notifications (FCM V1)" → upload
    ```
+3. Run the first Android build (Step 6). It creates the **upload keystore**.
+   Then `eas credentials -p android` shows its SHA-256 fingerprint. Put it in
+   `public/.well-known/assetlinks.json` in place of `EAS_UPLOAD_KEY_SHA256`.
+4. After the first upload to Play (Step 7), copy the **App signing key**
+   SHA-256 from Play Console → *Test and release → App integrity* in place of
+   `PLAY_APP_SIGNING_SHA256`. Google signs store installs with that key, so
+   https links only open the app once it is listed.
 
-3. **Link project**
+## Step 4: Supabase
+
+1. **Authentication → URL Configuration → Redirect URLs**: add `footballfriends://**`,
+   so emailed sign-in links and Google sign-in can return to the app.
+2. **Authentication → Sign In / Providers → Apple**: enable it and put
+   `com.footballfriends.app` in **Client IDs**. The native iOS sheet needs no
+   secret key. (A secret key and Services ID are only needed for Apple sign-in
+   on the web, which the app does not offer.)
+3. **Google provider**: the existing setup is enough (native uses the same
+   browser-based flow as the web).
+4. The open launch items in [RELEASE_STATUS.md](RELEASE_STATUS.md): custom SMTP,
+   leaked-password protection, a full backup.
+5. Make sure the Edge Functions are current, deploying each one with `_shared`:
    ```bash
-   supabase link --project-ref your-project-ref
+   supabase link --project-ref exqtxouswbcunrgxftzr
+   for f in join-match cancel-signup lock-and-generate swap-players create-match notify-chat notify-teams delete-account; do
+     supabase functions deploy $f
+   done
    ```
 
-4. **Deploy functions**
+## Step 5: Publish the web files the stores check
+
+1. Commit the filled-in `public/.well-known/*` files and deploy to Vercel.
+   `npm run build:web` warns while placeholders are left.
+2. **Turn off Vercel Deployment Protection for production.** Apple and Google
+   download `/.well-known/*` without signing in, and reviewers must open the
+   privacy policy. Do this only after the RELEASE_STATUS checklist passes.
+3. Check:
    ```bash
-   supabase functions deploy join-match
-   supabase functions deploy cancel-signup
-   supabase functions deploy lock-and-generate
+   curl -sI https://football-friends-seven.vercel.app/.well-known/apple-app-site-association | grep -i content-type   # application/json
+   curl -s  https://football-friends-seven.vercel.app/.well-known/assetlinks.json
+   curl -sI https://football-friends-seven.vercel.app/privacy.html | head -1                                          # 200
    ```
 
-5. **Set secrets** (if needed)
-   ```bash
-   supabase secrets set ONESIGNAL_API_KEY=your-api-key
-   ```
-
-## Step 5: Database Migration
-
-1. **Run schema in Supabase SQL Editor**
-   ```sql
-   -- Copy contents of supabase/schema.sql
-   ```
-
-2. **Apply RLS policies**
-   ```sql
-   -- Copy contents of supabase/rls-policies.sql
-   ```
-
-3. **Verify tables created**
-   ```bash
-   # Check in Supabase Dashboard → Database → Tables
-   ```
-
-## Step 6: Environment Variables
-
-Update production environment variables in EAS:
+## Step 6: Test builds on real phones
 
 ```bash
-eas secret:create --name EXPO_PUBLIC_SUPABASE_URL --value https://your-project.supabase.co
-eas secret:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value your-anon-key
-eas secret:create --name EXPO_PUBLIC_EAS_PROJECT_ID --value your-eas-project-id
+eas build -p ios --profile preview        # register test iPhones first: eas device:create
+eas build -p android --profile preview    # installable .apk
 ```
 
-## Step 7: App Store Listings
+Install from the links EAS prints and check:
 
-### iOS App Store
+- [ ] Email + password, magic link (open the email on the phone), 6-digit code
+- [ ] Continue with Google; **Continue with Apple** on iPhone (first sign-in suggests your name in onboarding)
+- [ ] An invite link `https://football-friends-seven.vercel.app/join/CODE` tapped in Messages/WhatsApp opens the app
+- [ ] Allow notifications, then from a second account: a waitlist promotion sends "You're In!"; teams being picked and chat send their pushes
+- [ ] Join and cancel a match, generate and swap teams, record a result, change avatar, delete a throwaway account
 
-**Required:**
-- App name: Football Friends
-- Subtitle: Organize 6-a-side football matches
-- Description: (See below)
-- Keywords: football, soccer, sports, organize, matches, teams
-- Screenshots: 6.7", 6.5", 5.5" (portrait)
-- App icon: 1024x1024
-- Privacy policy URL
-- Support URL
+## Step 7: Production builds and store submission
 
-**Privacy Labels:**
-- Contact Info: Email
-- Location: Not collected
-- User Content: Player ratings, match signups
-- Identifiers: Used for push notifications
-
-### Google Play Store
-
-**Required:**
-- App name: Football Friends
-- Short description: Organize 6-a-side football matches
-- Full description: (See below)
-- Screenshots: Phone and tablet
-- Feature graphic: 1024x500
-- App icon: 512x512
-- Privacy policy URL
-- Content rating questionnaire
-
-**Sample Description:**
-```
-Football Friends helps organize weekly 6-a-side football matches for your group.
-
-FEATURES:
-• First-come-first-served signup system
-• Automatic waitlist management
-• Balanced team generation based on player ratings
-• Real-time countdown timers
-• Push notifications for match updates
-• Magic link login (no passwords!)
-
-Perfect for organizing regular football games with friends!
+```bash
+eas build -p all --profile production    # build numbers increase automatically
 ```
 
-## Step 8: Testing Production Build
+**iOS**
+```bash
+eas submit -p ios --latest               # uploads to App Store Connect / TestFlight
+```
+In App Store Connect: add TestFlight testers if wanted, then fill in the listing
+(Step 8) and **Add for Review**.
 
-1. **Install on test devices**
-   ```bash
-   # iOS TestFlight
-   eas build --platform ios --profile preview
-   # Add testers in App Store Connect
+**Android**
+1. Google requires the **first** upload by hand: Play Console → *Test and release →
+   Testing → Internal testing → Create release* → upload the `.aab` from the EAS build page.
+2. Later releases: `eas submit -p android --latest`. That needs a Google Play
+   service account key (`eas credentials -p android` → *Google Service Account
+   for Play Store submissions*). It goes to the internal track as a draft (`eas.json`).
+3. Promote internal → closed testing (12 testers, 14 days for new personal
+   accounts) → production.
 
-   # Android Internal Testing
-   eas build --platform android --profile preview
-   # Upload to Play Console Internal Testing track
-   ```
+## Step 8: Store listings
 
-2. **Test checklist**
-   - [ ] Magic link login works
-   - [ ] Deep links navigate correctly
-   - [ ] Push notifications received
-   - [ ] Match creation and signup
-   - [ ] Waitlist promotion
-   - [ ] Team generation
-   - [ ] Countdown timers accurate
+Both stores:
+- Name *Football Friends*, short description *Organise your weekly 6-a-side football*, full description in English and Romanian
+- Privacy policy: `https://football-friends-seven.vercel.app/privacy.html`
+- Support contact: an email address you read
+- **A demo account for reviewers** (email + password) that belongs to a group
+  with an upcoming match. Reviewers can't receive magic links or join a group without one.
 
-## Step 9: Post-Launch Monitoring
+App Store (App Store Connect):
+- Screenshots: iPhone 6.9" (1320×2868) and, because `supportsTablet` is on, iPad 13" (2064×2752)
+- App Privacy: Contact info (email, name); User content (photos, messages,
+  other: ratings/sign-ups); Identifiers (user ID, device ID: the push token).
+  All linked to the user, none used for tracking
+- Age rating questionnaire (it has user chat), category Sports
 
-1. **Set up analytics** (optional)
-   - Add Expo Analytics or Firebase Analytics
-   - Track key events: signups, cancellations, match views
+Google Play (Play Console):
+- Screenshots (phone), a 512×512 icon (`assets/icon.png` scaled down), a 1024×500 feature graphic
+- **Data safety**: same data as above, encrypted in transit, users can request deletion
+- **Account deletion URL**: `https://football-friends-seven.vercel.app/privacy.html` (section 7)
+- Content rating questionnaire, target audience 13+, no ads
 
-2. **Monitor Supabase**
-   - Check Database → Performance
-   - Review Edge Functions logs
-   - Set up alerts for errors
+## After launch
 
-3. **Monitor Expo Push Notifications**
-   - Check Expo dashboard for delivery stats
-   - Review notification logs in Supabase Edge Functions
-
-4. **Crash Reporting**
-   - Enable Sentry or similar service
-   - Monitor production errors
+- Edge Function logs: Supabase Dashboard → Edge Functions → Logs; push receipts: https://expo.dev/notifications
+- Each update: `eas build -p all --profile production`, then `eas submit`
+- Update the Expo SDK roughly every 6 months. Store builds require recent Xcode
+  and Android target SDK versions (SDK 58 targets Android 36).
 
 ## Troubleshooting
 
-### Build fails with signing errors
-- Verify Apple/Google credentials in EAS
-- Clear credentials: `eas credentials` → delete → recreate
+- **No push token / "need an EAS project ID"**: run `eas init`, commit `app.json`, rebuild.
+- **Android push never arrives**: the FCM V1 key is missing (Step 3.2) or the build
+  had no `google-services.json` (Step 3.1). Check that `GOOGLE_SERVICES_JSON` exists in that EAS environment.
+- **https links open the browser**: the `.well-known` files still have
+  placeholders, are behind Vercel protection, or (Android) are missing the Play
+  signing fingerprint. Apple caches the file; reinstall the app after fixing it.
+- **Sign in with Apple says the provider is not enabled**: Step 4.2.
+- **Emailed link opens the app but does not sign in**: `footballfriends://**` is missing from Supabase redirect URLs.
+- **Signing errors**: `eas credentials`, remove the broken item and let EAS recreate it.
 
-### Push notifications not working
-- Verify device permissions are granted
-- Check push token saved in database
-- Test with Expo Push Tool: https://expo.dev/notifications
-- Check Edge Function logs in Supabase
+## Rollback
 
-### Deep links not working
-- Verify domain association files accessible
-- Check bundle/package identifiers match
-- Test with `npx uri-scheme`
-
-### Supabase RLS blocks queries
-- Review RLS policies
-- Check user authentication state
-- Use service role only in Edge Functions
-
-## Rollback Plan
-
-If issues arise after launch:
-
-1. **Disable problematic features** via feature flags
-2. **Roll back Edge Functions**
-   ```bash
-   supabase functions deploy function-name@previous-version
-   ```
-3. **Submit hotfix build** to stores (expedited review available)
-
-## Maintenance
-
-- **Weekly**: Check crash reports and fix critical bugs
-- **Monthly**: Review analytics and user feedback
-- **Quarterly**: Update dependencies and Expo SDK
-
----
-
-Good luck with your deployment! 🚀⚽
+Store releases cannot be pulled back to an older binary. Fix forward with a new
+build (Apple offers expedited review). Edge Functions and the web app roll back
+independently (see the web section and `supabase functions deploy`).

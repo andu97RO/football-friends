@@ -1,5 +1,5 @@
 import { Modal, StyleSheet, View, ViewStyle } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { AnimatedStyle, useAnimatedStyle } from 'react-native-reanimated';
 import { theme } from '@/constants/theme';
 import { useMotionPresence, useSystemReducedMotion } from '@/lib/motion';
 
@@ -8,7 +8,7 @@ export function MotionModal({ visible, onClose, kind, children }: {
   visible: boolean;
   onClose: () => void;
   kind: 'sheet' | 'dialog';
-  children: React.ReactNode | ((style: ViewStyle) => React.ReactNode);
+  children: React.ReactNode | ((style: AnimatedStyle<ViewStyle>) => React.ReactNode);
 }) {
   const reduced = useSystemReducedMotion();
   const { present, progress } = useMotionPresence(visible, theme.motion.modalEnter, theme.motion.modalExit);

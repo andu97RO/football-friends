@@ -1,5 +1,5 @@
 import { forwardRef, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, TextInputProps, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, TextInputInstance, TextInputProps, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/constants/theme';
 import { useT } from '@/lib/i18n';
@@ -12,7 +12,7 @@ type FieldProps = TextInputProps & {
   icon?: keyof typeof Ionicons.glyphMap;
 };
 
-export const Field = forwardRef<TextInput, FieldProps>(function Field({ label, helper, error, icon, style, ...props }, ref) {
+export const Field = forwardRef<TextInputInstance, FieldProps>(function Field({ label, helper, error, icon, style, ...props }, ref) {
   return (
     <View style={styles.wrap}>
       {label && <Txt variant="label" tone="secondary" style={styles.label}>{label}</Txt>}
@@ -32,7 +32,7 @@ export const Field = forwardRef<TextInput, FieldProps>(function Field({ label, h
 });
 
 /** A4: one password field with a show/hide eye, used on every password form. */
-export const PasswordField = forwardRef<TextInput, FieldProps>(function PasswordField({ label, helper, error, ...props }, ref) {
+export const PasswordField = forwardRef<TextInputInstance, FieldProps>(function PasswordField({ label, helper, error, ...props }, ref) {
   const t = useT();
   const [visible, setVisible] = useState(false);
   return (

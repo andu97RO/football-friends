@@ -24,13 +24,16 @@ export default function OnboardingScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Apple and Google share the player's name on sign-up; suggest it before the generated one.
+  const suggestedName = (session?.user.user_metadata?.full_name as string | undefined)?.trim() || profile.data?.display_name || '';
+
   if (session === undefined || profile.isLoading) return <LoadingState />;
   if (!isVerifiedSession(session)) return <Redirect href="/(auth)/login" />;
   if (profile.data?.onboarded) return <Redirect href="/(tabs)/matches" />;
 
   const save = async () => {
     setError(null);
-    const finalName = name.trim() || profile.data?.display_name || '';
+    const finalName = name.trim() || suggestedName;
     if (!finalName) return setError(t('auth.enterName'));
     if (rating === null) return setError(t('auth.pickRating'));
     setSaving(true);
@@ -50,7 +53,7 @@ export default function OnboardingScreen() {
       <Field
         label={t('auth.displayName')}
         helper={t('profile.displayNameHelp')}
-        placeholder={profile.data?.display_name || t('auth.displayNamePlaceholder')}
+        placeholder={suggestedName || t('auth.displayNamePlaceholder')}
         value={name}
         onChangeText={setName}
         autoComplete="name"

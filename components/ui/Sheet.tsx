@@ -48,7 +48,7 @@ export function Sheet({
 
 const styles = StyleSheet.create({
   fill: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFillObject },
+  backdrop: StyleSheet.absoluteFill,
   sheet: {
     maxHeight: '92%',
     width: '100%',

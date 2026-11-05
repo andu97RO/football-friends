@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Redirect, Tabs } from 'expo-router';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { Redirect } from 'expo-router';
+import { Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/constants/theme';
@@ -20,7 +20,7 @@ const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
 };
 
 /** M7: every tab shows its label; the active one sits in the lime pill. */
-function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.barWrap, { paddingBottom: Math.max(insets.bottom, 12) }]} pointerEvents="box-none">
@@ -38,8 +38,8 @@ function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
               accessibilityLabel={badge ? `${label}, ${badge}` : label}
               testID={`tab-${route.name}`}
               onPress={() => {
-                const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-                if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+                const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+                if (!focused && !event.defaultPrevented) navigateToTab(route.key);
               }}
               style={[styles.tab, focused && styles.tabActive]}
             >

@@ -161,7 +161,7 @@ export default function GroupsScreen() {
       header={header}
       tabBar
       testID="groups-screen"
-      refreshControl={<RefreshControl refreshing={groups.isRefetching} onRefresh={() => groups.refetch()} tintColor={theme.colors.primary} />}
+      refreshControl={<RefreshControl refreshing={groups.isRefetching} onRefresh={() => { void groups.refetch(); }} tintColor={theme.colors.primary} />}
     >
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Button title={t('groups.joinWithCodeShort')} icon="link-outline" onPress={() => setSheet('join')} style={{ flex: 1 }} testID="open-join-code" />

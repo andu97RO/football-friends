@@ -19,13 +19,18 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.footballfriends.app",
       "associatedDomains": [
-        "applinks:footballfriends.app"
+        "applinks:football-friends-seven.vercel.app",
+        "webcredentials:football-friends-seven.vercel.app"
       ],
       "infoPlist": {
         "CFBundleLocalizations": [
           "en",
           "ro"
         ]
+      },
+      "usesAppleSignIn": true,
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {
@@ -41,7 +46,7 @@
           "data": [
             {
               "scheme": "https",
-              "host": "footballfriends.app"
+              "host": "football-friends-seven.vercel.app"
             },
             {
               "scheme": "footballfriends"
@@ -52,6 +57,9 @@
             "DEFAULT"
           ]
         }
+      ],
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW"
       ]
     },
     "web": {
@@ -69,7 +77,25 @@
       "expo-asset",
       "expo-font",
       "expo-localization",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@react-native-community/datetimepicker",
+      "expo-status-bar",
+      "expo-apple-authentication",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Football Friends uses your photos so you can choose a profile picture.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#C8F04A"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -77,9 +103,6 @@
     "extra": {
       "router": {
         "origin": false
-      },
-      "eas": {
-        "projectId": "your-project-id-here"
       }
     }
   }

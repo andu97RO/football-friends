@@ -17,7 +17,12 @@ test('the app opens offline after one visit', async ({ page, context, browserNam
   await page.goto('/');
   await expect(page.getByTestId('login-screen')).toBeVisible();
   // The page tells the worker which bundle files it loaded, since they arrived before the worker took control.
-  await expect.poll(() => page.evaluate(async () => (await (await caches.open('static-v1')).keys()).length > 0)).toBe(true);
+  // Web builds are split into chunks, so wait until every bundle file the page loaded is cached.
+  await expect.poll(() => page.evaluate(async () => {
+    const loaded = performance.getEntriesByType('resource').map((entry) => entry.name).filter((url) => new URL(url).pathname.startsWith('/_expo/static/'));
+    const cached = new Set((await (await caches.open('static-v1')).keys()).map((request) => request.url));
+    return loaded.length > 0 && loaded.every((url) => cached.has(url));
+  }), { timeout: 20_000 }).toBe(true);
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByTestId('login-screen')).toBeVisible();

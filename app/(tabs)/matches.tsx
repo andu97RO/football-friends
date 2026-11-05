@@ -121,7 +121,7 @@ export default function MatchesScreen() {
       header={header}
       tabBar
       testID="matches-screen"
-      refreshControl={<RefreshControl refreshing={feed.isRefetching} onRefresh={() => feed.refetch()} tintColor={theme.colors.primary} />}
+      refreshControl={<RefreshControl refreshing={feed.isRefetching} onRefresh={() => { void feed.refetch(); }} tintColor={theme.colors.primary} />}
     >
       <InstallHint />
       {sections.length === 0 ? (

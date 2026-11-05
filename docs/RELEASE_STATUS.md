@@ -20,3 +20,26 @@ Before opening the URL:
 4. Obtain a full recoverable database backup before further data changes. Supabase reports no physical backups and PITR disabled; CLI `db dump` could not run with the current database privileges. The ignored `.release-private/` snapshot contains application rows and Auth metadata only, **not** password hashes or a full restorable backup.
 5. Review Supabase security/performance advisors. Current notices include GraphQL table visibility under existing grants (RLS still applies), leaked-password protection disabled, and several unindexed foreign keys. See the Supabase dashboard for live notices before launch.
 6. Remove Vercel protection only after the above pass. Keep the previous frontend and function versions and the full backup available. Preserve the new access restrictions during any rollback.
+
+# Native release status — 5 November 2026
+
+**Not submitted yet.** The code is ready for EAS builds; the remaining work is accounts, keys and dashboards, in the order given in [DEPLOYMENT.md](DEPLOYMENT.md#native-deployment-eas). Plan and decisions: [NATIVE_RELEASE_PLAN.md](NATIVE_RELEASE_PLAN.md).
+
+Done in the repository:
+
+- Expo SDK 54 → 58 (React Native 0.88, React 19.3, target Android SDK 36), one SDK at a time. `npm audit` reports 0 vulnerabilities (previously 25, 4 high).
+- Sign in with Apple through the native iOS sheet next to Google (App Store guideline 4.8).
+- `app.json`: purpose-specific photo permission, camera/microphone/overlay permissions removed, Android notification icon, no export-compliance prompt, Universal Links / App Links and password autofill on `football-friends-seven.vercel.app`.
+- `app.config.js` takes `google-services.json` from the `GOOGLE_SERVICES_JSON` EAS file variable; `eas.json` uses remote, auto-incremented build numbers and EAS environments.
+- `public/.well-known/apple-app-site-association` and `assetlinks.json`, served as JSON by Vercel and checked by `npm run build:web`.
+
+Blocking submission (owner actions):
+
+1. Apple Developer and Google Play accounts; Expo account; `eas init` (writes the EAS project ID that push needs).
+2. EAS environment variables, iOS credentials with APNs key, Firebase `google-services.json` and FCM V1 key.
+3. Team ID and SHA-256 fingerprints in the `.well-known` files.
+4. Supabase: `footballfriends://**` redirect, Apple provider with client ID `com.footballfriends.app`, and the open web launch items above (SMTP, backup, advisors).
+5. Vercel Deployment Protection off for production, so the stores can reach `/.well-known/*` and `/privacy.html`.
+6. Real-device test of preview builds, then store listings with a reviewer demo account.
+
+Not verified here: native compilation and device behaviour (no iOS/Android build in the development container). `expo prebuild` output was inspected for the plist, entitlements and manifest.
