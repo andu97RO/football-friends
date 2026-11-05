@@ -1,0 +1,19 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["APPLE_TEAM_ID.com.footballfriends.app"],
+        "components": [
+          { "/": "/join/*", "comment": "Group invite links" },
+          { "/": "/match/*", "comment": "Match details, chat and results" },
+          { "/": "/teams/*", "comment": "Drawn teams" },
+          { "/": "/group/*", "comment": "Group pages" },
+          { "/": "/callback", "comment": "Emailed sign-in and password links" }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["APPLE_TEAM_ID.com.footballfriends.app"]
+  }
+}

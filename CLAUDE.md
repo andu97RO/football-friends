@@ -44,7 +44,7 @@ supabase functions deploy lock-and-generate
 
 ## Tech Stack
 
-- **Framework**: Expo SDK ~54 with React Native 0.81.5
+- **Framework**: Expo SDK ~58 with React Native 0.88 (`Tabs` comes from `expo-router/js-tabs`)
 - **Navigation**: expo-router (file-based routing)
 - **Backend**: Supabase (Postgres + Edge Functions + Realtime)
 - **State Management**: @tanstack/react-query + Zustand
@@ -141,7 +141,7 @@ Key tables:
 ### Deep Linking
 - Scheme: `footballfriends://` (configured in app.json)
 - Magic link callback: `app/(auth)/callback.tsx`
-- Production: Requires Universal Links (iOS) + App Links (Android)
+- Universal Links (iOS) + App Links (Android) on `football-friends-seven.vercel.app`, verified by `public/.well-known/` (fill in the Team ID / SHA-256 placeholders, see docs/DEPLOYMENT.md)
 - Test with: `npx uri-scheme open footballfriends://match/123 --ios`
 
 ### Platform-Specific Code
@@ -219,7 +219,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...  # DO NOT expose to client!
 
 ## Deployment
 
-- **Mobile Apps**: Use EAS Build (see docs/DEPLOYMENT.md)
+- **Mobile Apps**: Use EAS Build (see docs/DEPLOYMENT.md). `app.config.js` adds `google-services.json` (Android push) from the `GOOGLE_SERVICES_JSON` EAS file variable
 - **Edge Functions**: Deploy via `supabase functions deploy <function-name>`
 - **Database**: Apply SQL files in Supabase SQL Editor
 - **Push Notifications**: Expo manages certificates automatically

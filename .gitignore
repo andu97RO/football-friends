@@ -76,3 +76,7 @@ supabase/.temp/
 .vercel/
 output/
 .vercel
+
+# Firebase config for Android push (uploaded to EAS as the GOOGLE_SERVICES_JSON file variable)
+google-services.json
+GoogleService-Info.plist

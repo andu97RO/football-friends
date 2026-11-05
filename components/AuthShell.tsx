@@ -1,14 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Linking, Platform, StyleSheet, View } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '@/constants/theme';
 import { useT } from '@/lib/i18n';
-import { signInWithProvider, OAuthProvider } from '@/lib/oauth';
+import { isNativeAppleSignInAvailable, signInWithAppleNative, signInWithProvider, OAuthProvider } from '@/lib/oauth';
 import { appUrl } from '@/lib/utils';
 import { Button, Screen, ScreenHeader, Txt } from '@/components/ui';
-
-// Enable once the Apple provider is configured. Keep the button and OAuth flow ready.
-const APPLE_SIGN_IN_ENABLED = false;
 
 /** Auth pages: back button, big title, and fields that stay clear of the keyboard (A7). */
 export function AuthShell({
@@ -51,14 +49,26 @@ export function AuthShell({
   );
 }
 
-/** A1: Apple and Google buttons. Errors are reported through onError. */
+/**
+ * A1: Apple and Google buttons. Errors are reported through onError.
+ * Sign in with Apple uses the iOS system sheet and only shows on iOS, where
+ * App Store guideline 4.8 requires it next to Google.
+ */
 export function SocialButtons({ onError }: { onError: (message: string) => void }) {
   const t = useT();
   const [busy, setBusy] = useState<OAuthProvider | null>(null);
+  const [appleAvailable, setAppleAvailable] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void isNativeAppleSignInAvailable().then((available) => live && setAppleAvailable(available));
+    return () => { live = false; };
+  }, []);
   const start = async (provider: OAuthProvider) => {
+    if (busy) return;
     setBusy(provider);
     try {
-      await signInWithProvider(provider);
+      if (provider === 'apple') await signInWithAppleNative();
+      else await signInWithProvider(provider);
     } catch (error) {
       onError(error instanceof Error ? error.message : t('auth.oauthFailed'));
     } finally {
@@ -67,8 +77,16 @@ export function SocialButtons({ onError }: { onError: (message: string) => void 
   };
   return (
     <View style={{ gap: 10 }}>
-      {APPLE_SIGN_IN_ENABLED && Platform.OS !== 'android' && (
-        <Button title={t('auth.continueApple')} icon="logo-apple" variant="secondary" loading={busy === 'apple'} disabled={!!busy} onPress={() => start('apple')} testID="apple-sign-in" />
+      {appleAvailable && (
+        <AppleAuthentication.AppleAuthenticationButton
+          buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+          buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+          cornerRadius={theme.borderRadius.m}
+          style={styles.appleButton}
+          onPress={() => start('apple')}
+          accessibilityLabel={t('auth.continueApple')}
+          testID="apple-sign-in"
+        />
       )}
       <Button title={t('auth.continueGoogle')} icon="logo-google" variant="secondary" loading={busy === 'google'} disabled={!!busy} onPress={() => start('google')} testID="google-sign-in" />
     </View>
@@ -110,6 +128,8 @@ export function LegalNote() {
 }
 
 const styles = StyleSheet.create({
+  // Same height as the large Google button beside it.
+  appleButton: { width: '100%', height: 54 },
   content: { gap: theme.spacing.l, paddingTop: theme.spacing.l },
   icon: {
     width: 56, height: 56, borderRadius: 16, backgroundColor: theme.colors.surfaceRaised, borderWidth: 1,

@@ -4,6 +4,7 @@
  */
 import * as Notifications from "expo-notifications";
 import { AndroidImportance } from "expo-notifications";
+import Constants from "expo-constants";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 import { supabase } from "./supabase";
@@ -129,10 +130,14 @@ export async function registerForPushNotificationsAsync(
       return null;
     }
 
-    // Get the Expo push token
-    // For Expo Go (development), projectId is optional and will use experienceId from app.json
-    // For production builds, EAS will automatically provide the projectId
-    const tokenData = await Notifications.getExpoPushTokenAsync();
+    // The EAS project ID ties the token to this app on Expo's push service.
+    // `eas init` writes it to app.json (expo.extra.eas.projectId).
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+    if (!projectId) {
+      console.error("Push notifications need an EAS project ID. Run `eas init` and rebuild.");
+      return null;
+    }
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
     const token = tokenData.data;
 
     // Save token to database

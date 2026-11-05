@@ -31,4 +31,15 @@ if (!readFileSync(join('dist', 'index.html'), 'utf8').includes('rel="manifest"')
   throw new Error('The exported index.html does not link the web app manifest');
 }
 
-console.log('Web export contains the expected public Supabase configuration and the installable app files');
+// Native app links: iOS and Android download these to let https links open the app.
+const linkFiles = ['.well-known/apple-app-site-association', '.well-known/assetlinks.json'];
+for (const file of linkFiles) {
+  if (!existsSync(join('dist', file))) throw new Error(`The web export is missing ${file}`);
+  const text = readFileSync(join('dist', file), 'utf8');
+  JSON.parse(text);
+  if (/APPLE_TEAM_ID|_SHA256"/.test(text)) {
+    console.warn(`${file} still has placeholder IDs: links will not open the native app until they are filled in (docs/DEPLOYMENT.md)`);
+  }
+}
+
+console.log('Web export contains the expected public Supabase configuration, the installable app files and the app link files');

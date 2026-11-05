@@ -51,8 +51,17 @@ export function registerServiceWorker(): void {
       const registration = await navigator.serviceWorker.register('/sw.js');
       await navigator.serviceWorker.ready;
       // The worker misses the first visit's requests, so it is told what this build loaded.
-      const urls = performance.getEntriesByType('resource').map((entry) => entry.name);
-      (registration.active ?? navigator.serviceWorker.controller)?.postMessage({ type: 'CACHE_URLS', urls });
+      const post = (urls: string[]) =>
+        (navigator.serviceWorker.controller ?? registration.active)?.postMessage({ type: 'CACHE_URLS', urls });
+      post(performance.getEntriesByType('resource').map((entry) => entry.name));
+      // Route chunks keep loading as screens open, some before the worker controls the page.
+      // Report each bundle file once it has loaded; the worker skips files it already has.
+      if (typeof PerformanceObserver !== 'undefined') {
+        new PerformanceObserver((list) => {
+          const urls = list.getEntries().map((entry) => entry.name).filter((url) => url.includes('/_expo/static/'));
+          if (urls.length) post(urls);
+        }).observe({ type: 'resource' });
+      }
     } catch (error) {
       console.warn('Could not register the service worker:', error);
     }

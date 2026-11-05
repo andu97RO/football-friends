@@ -6,7 +6,7 @@ migration or deployment status.
 
 ## Project and commands
 
-Football Friends is an Expo SDK 54 / React Native 0.81.5 app with a web SPA,
+Football Friends is an Expo SDK 58 / React Native 0.88 app with a web SPA,
 TypeScript strict mode, expo-router, Supabase, TanStack Query, and Zustand.
 It supports invite-based groups, FCFS match signups, automatic waitlist
 promotion, balanced teams, chat, match results, and English/Romanian copy.
@@ -35,8 +35,9 @@ replace real-session RLS or deployed-backend validation.
 ## Routes and shared UI
 
 - `app/(auth)/`: password login/signup, magic links, forgot-password,
-  check-inbox, reset-password, callback. Google OAuth is exposed; Apple
-  sign-in is temporarily hidden, though `lib/oauth.ts` supports it.
+  check-inbox, reset-password, callback. Google OAuth everywhere; Sign in
+  with Apple only on iOS, through the native sheet (`signInWithAppleNative` in
+  `lib/oauth.ts`, Supabase `signInWithIdToken`).
 - `app/(tabs)/`: matches feed across groups, groups, profile. No Admin tab.
 - `app/group/[id].tsx`: group membership, requests, invites, roles, ratings.
 - `app/join/[code].tsx`: invite landing; `app/onboarding.tsx`: name/self-rating.

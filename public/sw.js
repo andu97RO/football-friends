@@ -80,9 +80,20 @@ async function cacheCurrentBuild(urls) {
   await Promise.all(wanted.map(async (href) => {
     if (!(await cache.match(href))) await cache.add(href).catch(() => undefined);
   }));
-  // Bundles from earlier deploys are no longer referenced by index.html.
+  // Drop the previous deploy's copy of the shell bundles every page loads (runtime, common, entry, CSS).
+  // Route chunks load later as screens open and several routes share a name such as "[id]", so they are
+  // never evicted here; bumping VERSION clears them.
   const keep = new Set(wanted);
+  const current = new Set(wanted.map((href) => shellChunk(new URL(href).pathname)).filter(Boolean));
   for (const request of await cache.keys()) {
-    if (new URL(request.url).pathname.startsWith('/_expo/static/') && !keep.has(request.url)) await cache.delete(request);
+    const { pathname } = new URL(request.url);
+    const name = shellChunk(pathname);
+    if (name && current.has(name) && !keep.has(request.url)) await cache.delete(request);
   }
+}
+
+// "/_expo/static/js/web/entry-770b…08.js" -> "js/entry"; null for route chunks.
+function shellChunk(pathname) {
+  const match = pathname.match(/^\/_expo\/static\/(js|css)\/(?:web\/)?(__expo-metro-runtime|__common|entry|[^/]+(?=-[0-9a-f]{16,}\.css$))-[0-9a-f]{16,}\.(js|css)$/);
+  return match ? `${match[1]}/${match[2]}` : null;
 }

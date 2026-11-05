@@ -67,7 +67,7 @@ test('password login and hard refresh preserve session', async ({ page, backend 
   await expect(page.getByTestId('matches-screen')).toBeVisible();
 });
 
-test('A1: sign-in offers Google and an emailed code while Apple is hidden', async ({ page, backend }) => {
+test('A1: on the web, sign-in offers Google and an emailed code; Apple is iOS-only', async ({ page, backend }) => {
   await page.goto('/login');
   await expect(page.getByTestId('google-sign-in')).toBeVisible();
   await expect(page.getByTestId('apple-sign-in')).toHaveCount(0);
