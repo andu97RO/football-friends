@@ -1,6 +1,6 @@
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient, navigatorLock } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { useAuthStore } from './auth-store';
@@ -23,6 +23,27 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
   }
 }
 
+/** Runs `operation` under an exclusive cross-tab lock, giving up (without running it) after `timeout` ms. */
+async function exclusiveTabLock<R>(name: string, timeout: number, operation: () => Promise<R>): Promise<R> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout > 0 ? timeout : AUTH_LOCK_TIMEOUT_MS);
+  try {
+    return await navigator.locks.request(name, { mode: 'exclusive', signal: controller.signal }, () => {
+      clearTimeout(timer);
+      return operation();
+    });
+  } catch (error) {
+    if (controller.signal.aborted && error instanceof Error && error.name === 'AbortError') {
+      const timeoutError = Object.assign(new Error('Authentication session is busy.'), { isAcquireTimeout: true });
+      timeoutError.name = 'AuthLockTimeoutError';
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: AsyncStorage,
@@ -31,19 +52,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
     // Keep cross-tab session protection, but never queue forever behind a
     // suspended tab. A timed-out lock request is cancelled before it can save.
+    // supabase-js's own navigatorLock steals the lock on timeout instead, so
+    // the app uses navigator.locks directly to keep the cancel-and-retry behaviour.
     ...(Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.locks ? {
-      lock: async <R,>(name: string, timeout: number, operation: () => Promise<R>): Promise<R> => {
-        try {
-          return await navigatorLock(name, timeout < 0 ? AUTH_LOCK_TIMEOUT_MS : timeout, operation);
-        } catch (error) {
-          if (timeout < 0 && error instanceof Error && error.name === 'AbortError') {
-            const timeoutError = new Error('Authentication session is busy.');
-            timeoutError.name = 'AuthLockTimeoutError';
-            throw timeoutError;
-          }
-          throw error;
-        }
-      },
+      lock: exclusiveTabLock,
+      lockAcquireTimeout: AUTH_LOCK_TIMEOUT_MS,
     } : {}),
   },
 });

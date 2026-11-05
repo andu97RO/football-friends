@@ -3,6 +3,7 @@
  * Handles registration, permissions, and notification handling
  */
 import * as Notifications from "expo-notifications";
+import { AndroidImportance } from "expo-notifications";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 import { supabase } from "./supabase";
@@ -46,7 +47,7 @@ export async function scheduleLocalTestNotificationAsync(options?: {
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {
         name: "default",
-        importance: Notifications.AndroidImportance.MAX,
+        importance: AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: "#10b981",
       });
@@ -107,7 +108,7 @@ export async function registerForPushNotificationsAsync(
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {
         name: "default",
-        importance: Notifications.AndroidImportance.MAX,
+        importance: AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: "#10b981",
       });
@@ -149,7 +150,7 @@ export async function registerForPushNotificationsAsync(
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {
         name: "default",
-        importance: Notifications.AndroidImportance.MAX,
+        importance: AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: "#10b981", // Brand green color
       });
