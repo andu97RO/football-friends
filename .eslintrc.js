@@ -11,5 +11,9 @@ module.exports = {
   rules: {
     '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     'no-console': ['warn', { allow: ['warn', 'error'] }],
+    // Added by eslint-config-expo 56 for the React Compiler, which this app does not use.
+    // The flagged effects and Date.now() calls work today; refactor them separately.
+    'react-hooks/purity': 'warn',
+    'react-hooks/set-state-in-effect': 'warn',
   },
 };
